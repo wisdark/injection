@@ -113,6 +113,10 @@ typedef struct _SERVICE_ENTRY {
   HANDLE                  hThread;
 } SERVICE_ENTRY, *PSERVICE_ENTRY;
 
+typedef struct _INTERNAL_DISPATCH_TABLE {
+    LIST_ENTRY              DispatchEntryHead;
+    INTERNAL_DISPATCH_ENTRY DispatchEntry;
+} INTERNAL_DISPATCH_TABLE, *PINTERNAL_DISPATCH_TABLE;
 
 // display error message for last error code
 VOID xstrerror (PWCHAR fmt, ...){
@@ -682,6 +686,72 @@ BOOL GetServiceIDE(PSERVICE_ENTRY ste) {
       CloseHandle(hProcess);
     }
     return bFound;
+}
+
+BOOL IsHeapPtr(LPVOID ptr) {
+    MEMORY_BASIC_INFORMATION mbi;
+    DWORD                    res;
+    
+    if(ptr == NULL) return FALSE;
+    
+    // query the pointer
+    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
+    if(res != sizeof(mbi)) return FALSE;
+    return ((mbi.State   == MEM_COMMIT    ) &&
+            (mbi.Type    == MEM_PRIVATE   ) && 
+            (mbi.Protect == PAGE_READWRITE));
+}
+
+// this is never called. just an address to compare with
+void WINAPI ServiceMain(DWORD dwNumServicesArgs, LPWSTR *lpServiceArgVectors) {}
+
+LPVOID GetDispatchTable(VOID) {
+    LPVOID                   m, va = NULL;
+    PIMAGE_DOS_HEADER        dos;
+    PIMAGE_NT_HEADERS        nt;
+    PIMAGE_SECTION_HEADER    sh;
+    DWORD                    i, cnt;
+    PULONG_PTR               ds;
+    PINTERNAL_DISPATCH_TABLE dt;
+    
+    // fake service 
+    SERVICE_TABLE_ENTRY svcTable[] = {
+      { L"", ServiceMain },
+      { NULL, NULL }};
+    
+    // this will create the dispatch table
+    StartServiceCtrlDispatcher(svcTable);
+    
+    // now search the .data segment of sechost.dll for the table
+    m   = GetModuleHandle(L"sechost.dll");
+    dos = (PIMAGE_DOS_HEADER)m;  
+    nt  = RVA2VA(PIMAGE_NT_HEADERS, m, dos->e_lfanew);  
+    sh  = (PIMAGE_SECTION_HEADER)((LPBYTE)&nt->OptionalHeader + 
+          nt->FileHeader.SizeOfOptionalHeader);
+          
+    // locate the .data segment, save VA and number of pointers
+    for(i=0; i<nt->FileHeader.NumberOfSections; i++) {
+      if(*(PDWORD)sh[i].Name == *(PDWORD)".data") {
+        ds  = RVA2VA(PULONG_PTR, m, sh[i].VirtualAddress);
+        cnt = sh[i].Misc.VirtualSize / sizeof(ULONG_PTR);
+        break;
+      }
+    }
+    // for each pointer
+    for(i=0; i<cnt; i++) {
+      // not a heap pointer? skip it
+      if(!IsHeapPtr((LPVOID)ds[i])) continue;
+      
+      dt = (PINTERNAL_DISPATCH_TABLE)ds[i];
+
+      // contains our function?
+      if(dt->DispatchEntry.ServiceStartRoutine == (LPVOID)ServiceMain) {
+        // return RVA of dispatch table
+        va = (LPVOID)((PBYTE)&ds[i] - (PBYTE)m);
+        break;
+      }
+    }
+    return va;
 }
 
 DWORD readpic(PWCHAR path, LPVOID *pic){
