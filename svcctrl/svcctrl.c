@@ -669,8 +669,8 @@ BOOL GetServiceIDE(PSERVICE_ENTRY ste) {
         res = VirtualQueryEx(hProcess, addr, &mbi, sizeof(mbi));
 
         // we only want to scan the heap, but this will scan stack space too.
-        if ((mbi.State == MEM_COMMIT)  &&
-            (mbi.Type  == MEM_PRIVATE) && 
+        if ((mbi.State   == MEM_COMMIT)  &&
+            (mbi.Type    == MEM_PRIVATE) && 
             (mbi.Protect == PAGE_READWRITE)) 
         {
           bFound = FindServiceIDE(hProcess, 

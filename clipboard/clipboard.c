@@ -79,18 +79,18 @@ VOID clipboard(LPVOID payload, DWORD payloadSize) {
 // GetWindowModuleFileName doesn't always work for window handles
 
 VOID list_clipboards(VOID) {
-  HWND  hw = NULL;
-  DWORD pid;
-  
-  printf("%-16s %-5s Process\n", "HWND", "PID");
-  printf("*****************************************\n");
-  
-  for(;;) {
-    hw = FindWindowEx(HWND_MESSAGE, hw, L"CLIPBRDWNDCLASS", NULL);
-    if(hw == NULL) break;
-    GetWindowThreadProcessId(hw, &pid);
-    printf("%p %-5i %ws\n", (LPVOID)hw, pid, pid2name(pid));
-  }
+    HWND  hw = NULL;
+    DWORD pid;
+    
+    printf("%-16s %-5s Process\n", "HWND", "PID");
+    printf("*****************************************\n");
+    
+    for(;;) {
+      hw = FindWindowEx(HWND_MESSAGE, hw, L"CLIPBRDWNDCLASS", NULL);
+      if(hw == NULL) break;
+      GetWindowThreadProcessId(hw, &pid);
+      printf("%p %-5i %ws\n", (LPVOID)hw, pid, pid2name(pid));
+    }
 }
 
 int main(void){

@@ -39,7 +39,7 @@ typedef struct _IUnknown_VFT {
     LPVOID ptrs[128];
 } IUnknown_VFT;
 
-VOID comctrl_inject(LPVOID payload, DWORD payloadSize) {
+VOID commctrl_inject(LPVOID payload, DWORD payloadSize) {
     HWND         hw = 0;
     SIZE_T       rd, wr;
     LPVOID       ds, cs, p, ptr;
@@ -198,7 +198,7 @@ L1:
     return TRUE;
 }
 
-VOID comctrl_list(PWCHAR filter) {
+VOID commctrl_list(PWCHAR filter) {
     printf("%-16s %-16s %-40s %-5s %s\n", 
       "HWND", "WindowBytes", "Class", "PID", "Process");
     printf("*******************************************"
@@ -224,7 +224,7 @@ int main(void) {
     // inject payload?
     len = readpic(argv[1], &pic);
     if(len != 0) {
-      comctrl_inject(pic, len);
+      commctrl_inject(pic, len);
     } else {
       printf("unable to read from %ws\n", argv[1]);
       commctrl_list(argv[1]);
