@@ -719,7 +719,7 @@ LPVOID GetDispatchTable(VOID) {
       { L"", ServiceMain },
       { NULL, NULL }};
     
-    // this will create the dispatch table
+    // this will create the dispatch table but won't execute ServiceMain
     StartServiceCtrlDispatcher(svcTable);
     
     // now search the .data segment of sechost.dll for the table
