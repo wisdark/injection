@@ -1343,6 +1343,29 @@ typedef struct _SYSTEM_BASIC_INFORMATION {
     CCHAR NumberOfProcessors;
 } SYSTEM_BASIC_INFORMATION, *PSYSTEM_BASIC_INFORMATION;
 
+typedef struct _PROCESS_EXTENDED_BASIC_INFORMATION
+{
+    SIZE_T Size; // set to sizeof structure on input
+    //PROCESS_BASIC_INFORMATION BasicInfo;
+    union
+    {
+        ULONG Flags;
+        struct
+        {
+            ULONG IsProtectedProcess : 1;
+            ULONG IsWow64Process : 1;
+            ULONG IsProcessDeleting : 1;
+            ULONG IsCrossSessionCreate : 1;
+            ULONG IsFrozen : 1;
+            ULONG IsBackground : 1;
+            ULONG IsStronglyNamed : 1;
+            ULONG IsSecureProcess : 1;
+            ULONG IsSubsystemProcess : 1;
+            ULONG SpareBits : 23;
+        };
+    };
+} PROCESS_EXTENDED_BASIC_INFORMATION, *PPROCESS_EXTENDED_BASIC_INFORMATION;
+
 //
 // Processor information
 // NtQuerySystemInformation with SystemProcessorInformation
@@ -1661,6 +1684,77 @@ typedef struct _SYSTEM_GDI_DRIVER_INFORMATION {
     PIMAGE_EXPORT_DIRECTORY ExportSectionPointer;
 } SYSTEM_GDI_DRIVER_INFORMATION, *PSYSTEM_GDI_DRIVER_INFORMATION;
 */
+
+typedef enum _KWAIT_REASON
+{
+	Executive = 0,
+	FreePage = 1,
+	PageIn = 2,
+	PoolAllocation = 3,
+	DelayExecution = 4,
+	Suspended = 5,
+	UserRequest = 6,
+	WrExecutive = 7,
+	WrFreePage = 8,
+	WrPageIn = 9,
+	WrPoolAllocation = 10,
+	WrDelayExecution = 11,
+	WrSuspended = 12,
+	WrUserRequest = 13,
+	WrEventPair = 14,
+	WrQueue = 15,
+	WrLpcReceive = 16,
+	WrLpcReply = 17,
+	WrVirtualMemory = 18,
+	WrPageOut = 19,
+	WrRendezvous = 20,
+	Spare2 = 21,
+	Spare3 = 22,
+	Spare4 = 23,
+	Spare5 = 24,
+	WrCalloutStack = 25,
+	WrKernel = 26,
+	WrResource = 27,
+	WrPushLock = 28,
+	WrMutex = 29,
+	WrQuantumEnd = 30,
+	WrDispatchInt = 31,
+	WrPreempted = 32,
+	WrYieldExecution = 33,
+	WrFastMutex = 34,
+	WrGuardedMutex = 35,
+	WrRundown = 36,
+	MaximumWaitReason = 37
+} KWAIT_REASON;
+
+typedef enum _KTHREAD_STATE {
+   Initialized = 0,
+   Ready = 1,
+   Running = 2,
+   Standby = 3,
+   Terminated = 4,
+   Waiting = 5,
+   Transition = 6,
+   DeferredReady = 7,
+   GateWait = 8
+} KTHREAD_STATE;
+
+typedef struct _SYSTEM_THREAD_INFORMATION {
+	LARGE_INTEGER KernelTime;
+	LARGE_INTEGER UserTime;
+	LARGE_INTEGER CreateTime;
+	ULONG         WaitTime;
+	PVOID         StartAddress;
+	CLIENT_ID     ClientId;
+	KPRIORITY     Priority;
+	LONG          BasePriority;
+	ULONG         ContextSwitchCount;
+	KTHREAD_STATE ThreadState;
+	KWAIT_REASON  WaitReason;
+#ifdef _WIN64
+	ULONG Reserved[4];
+#endif
+}SYSTEM_THREAD_INFORMATION, *PSYSTEM_THREAD_INFORMATION;
 
 NTSYSAPI
 NTSTATUS

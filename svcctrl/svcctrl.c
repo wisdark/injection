@@ -697,6 +697,7 @@ BOOL IsHeapPtr(LPVOID ptr) {
     // query the pointer
     res = VirtualQuery(ptr, &mbi, sizeof(mbi));
     if(res != sizeof(mbi)) return FALSE;
+    
     return ((mbi.State   == MEM_COMMIT    ) &&
             (mbi.Type    == MEM_PRIVATE   ) && 
             (mbi.Protect == PAGE_READWRITE));
