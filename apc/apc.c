@@ -222,7 +222,7 @@ DWORD WINAPI ThreadProc(LPVOID lpParameter) {
 
 HANDLE find_alertable_thread2(HANDLE hp, DWORD pid) {
     HANDLE        ss, ht, evt[2], h = NULL;
-    LPVOID        rm, sevt, f[5];
+    LPVOID        rm, sevt, f[6];
     THREADENTRY32 te;
     SIZE_T        rd;
     DWORD         i;
@@ -325,7 +325,7 @@ VOID apc_inject(DWORD pid, LPVOID payload, DWORD payloadSize) {
     if(hp == NULL) return;
     
     // 2. Find an alertable thread
-    ht = find_alertable_thread2(hp, pid);
+    ht = find_alertable_thread1(hp, pid);
 
     if(ht != NULL) {
       // 3. Allocate memory
