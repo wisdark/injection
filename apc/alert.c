@@ -30,35 +30,35 @@
 /**
   Example output on Windows 10
 
-  RIP : 00007FFF1491C6E4 ntdll.dll!ZwDelayExecution
+  PC: 00007FFF1491C6E4 ntdll.dll!ZwDelayExecution
   Queuing APC for SleepEx.
   SleepEx ended
 
-  RIP : 00007FFF1491C0E4 ntdll.dll!NtWaitForSingleObject
+  PC: 00007FFF1491C0E4 ntdll.dll!NtWaitForSingleObject
   Queuing APC for WaitForSingleObjectEx.
   WaitForSingleObjectEx ended
 
-  RIP : 00007FFF1491CBB4 ntdll.dll!NtWaitForMultipleObjects
+  PC: 00007FFF1491CBB4 ntdll.dll!NtWaitForMultipleObjects
   Queuing APC for WaitForMultipleObjectsEx.
   WaitForMultipleObjectsEx ended
 
-  RIP : 00007FFF1491F654 ntdll.dll!NtSignalAndWaitForSingleObject
+  PC: 00007FFF1491F654 ntdll.dll!NtSignalAndWaitForSingleObject
   Queuing APC for SignalObjectAndWait.
   SignalObjectAndWait ended
 
-  RIP : 00007FFF126C9A84 win32u.dll!NtUserMsgWaitForMultipleObjectsEx
+  PC: 00007FFF126C9A84 win32u.dll!NtUserMsgWaitForMultipleObjectsEx
   Queuing APC for MsgWaitForMultipleObjectsEx.
   MsgWaitForMultipleObjectsEx ended
 
-  RIP : 00007FFF1491CBB4 ntdll.dll!NtWaitForMultipleObjects
+  PC: 00007FFF1491CBB4 ntdll.dll!NtWaitForMultipleObjects
   Queuing APC for WSAWaitForMultipleEvents.
   WSAWaitForMultipleEvents ended
 
-  RIP : 00007FFF1491ED94 ntdll.dll!NtRemoveIoCompletionEx
+  PC: 00007FFF1491ED94 ntdll.dll!NtRemoveIoCompletionEx
   Queuing APC for GetQueuedCompletionStatusEx.
   GetQueuedCompletionStatusEx ended
 
-  RIP : 00007FFF1491C0E4 ntdll.dll!NtWaitForSingleObject
+  PC: 00007FFF1491C0E4 ntdll.dll!NtWaitForSingleObject
   Queuing APC for GetOverlappedResultEx.
   GetOverlappedResultEx ended
 
