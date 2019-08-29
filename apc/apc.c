@@ -252,11 +252,12 @@ HANDLE find_alertable_thread2(HANDLE hp, DWORD pid) {
     evt[1] = CreateEvent(NULL, FALSE, FALSE, NULL);
     ht     = CreateThread(NULL, 0, ThreadProc, evt, 0, NULL);
     
-    // resolve address of SetEvent in remote process
+    // wait a moment for thread to initialize
+    Sleep(100);
+    
+    // resolve address of SetEvent
     m      = GetModuleHandle(L"kernel32.dll");
-    rm     = GetRemoteModuleHandle(pid, L"kernel32.dll");
     sevt   = GetProcAddress(m, "SetEvent");
-    sevt   = ((PBYTE)sevt - (PBYTE)m) + (PBYTE)rm;
     
     // for each alertable function
     for(i=0; i<6; i++) {
