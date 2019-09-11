@@ -120,10 +120,11 @@ DWORD GetSockHelperDllListHeadRVA(VOID) {
     PIMAGE_DOS_HEADER        dos;
     PIMAGE_NT_HEADERS        nt;
     PIMAGE_SECTION_HEADER    sh;
-    DWORD                    res, rva=0, i, j;
-    PULONG_PTR               le;
+    DWORD                    res, cnt, rva=0, i;
+    PULONG_PTR               ds;
     MEMORY_BASIC_INFORMATION mbi;
     PWINSOCK_HELPER_DLL_INFO hdi;
+    PLIST_ENTRY              list;
     
     // by creating a socket for AF_INET, 
     // this loads mswsock.dll and initializes SockHelperDllListHead
@@ -139,34 +140,33 @@ DWORD GetSockHelperDllListHeadRVA(VOID) {
             nt->FileHeader.SizeOfOptionalHeader);
             
     // get the .data segment
-    for(i=0; i<nt->FileHeader.NumberOfSections; i++)
-      if(*(DWORD*)sh[i].Name == *(DWORD*)".data") break;
+    for(i=0; i<nt->FileHeader.NumberOfSections; i++) {
+      if(*(DWORD*)sh[i].Name == *(DWORD*)".data") {
+        ds  = RVA2VA(PULONG_PTR, m, sh[i].VirtualAddress);
+        cnt = (sh[i].Misc.VirtualSize/sizeof(ULONG_PTR));
+        break;
+      }
+    }
+
+    // for each pointer
+    for(i=0; i<cnt; i++) {
+      list = (PLIST_ENTRY)&ds[i];
+      // skip it not equal
+      if(list->Flink != list->Blink) continue;
+      // skip if not heap
+      if(!IsHeapPtr(list->Flink) && !IsHeapPtr(list->Blink)) continue;
+      // assume it's a winsock helpder dll info structure
+      hdi = (PWINSOCK_HELPER_DLL_INFO)list->Flink;
       
-    if(i < nt->FileHeader.NumberOfSections) {
-      // scan section for LIST_ENTRY structures
-      le = RVA2VA(PULONG_PTR, m, sh[i].VirtualAddress);
-         
-      for(j=0; j<(sh[i].Misc.VirtualSize/sizeof(ULONG_PTR)); j++) {
-        PLIST_ENTRY list = (PLIST_ENTRY)&le[j];
-        
-        // skip it not equal
-        if(list->Flink != list->Blink) continue;
-        
-        // skip if not heap
-        if(!IsHeapPtr(list->Flink) && !IsHeapPtr(list->Blink)) continue;
-        
-        // assume it's a winsock helpder dll info structure
-        hdi = (PWINSOCK_HELPER_DLL_INFO)list->Flink;
-        
-        // if heap/code pointers are present
-        if(IsHeapPtr(hdi->Mapping)        &&
-           IsCodePtr(hdi->WSHOpenSocket)  && 
-           IsCodePtr(hdi->WSHOpenSocket2) &&
-           IsCodePtr(hdi->WSHIoctl)) {
-           // return the RVA
-           rva = sh[i].VirtualAddress + j * sizeof(ULONG_PTR);
-           break;
-        }
+      // if heap/code pointers are present
+      if(IsHeapPtr(hdi->Mapping)        &&
+         IsCodePtr(hdi->WSHOpenSocket)  && 
+         IsCodePtr(hdi->WSHOpenSocket2) &&
+         IsCodePtr(hdi->WSHIoctl)) 
+      {
+         // return the RVA
+         rva = (DWORD)((PBYTE)&ds[i] - (PBYTE)m);
+         break;
       }
     }
     return rva;

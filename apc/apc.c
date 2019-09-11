@@ -296,8 +296,10 @@ VOID apc_inject(DWORD pid, LPVOID payload, DWORD payloadSize) {
       PROCESS_VM_OPERATION, 
       FALSE, pid);
       
-    if(hp == NULL) return;
-    
+    if(hp == NULL) {
+      printf("unable to open process.\n");
+      return;
+    }
     // 2. Find an alertable thread
     ht = find_alertable_thread2(hp, pid);
 

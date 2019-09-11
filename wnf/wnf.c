@@ -167,32 +167,7 @@ LPVOID GetUserSubFromProcessOld(
     return sa;
 }
 
-LPVOID GetRemoteModuleHandle(DWORD pid, LPCWSTR lpModuleName) {
-    HANDLE        ss;
-    MODULEENTRY32 me;
-    LPVOID        ba = NULL;
-    
-    ss = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid);
-    
-    if(ss == INVALID_HANDLE_VALUE) return NULL;
-    
-    me.dwSize = sizeof(MODULEENTRY32);
-    
-    if(Module32First(ss, &me)) {
-      do {
-        if(me.th32ProcessID == pid) {
-          if(lstrcmpi(me.szModule, lpModuleName)==0) {
-            ba = me.modBaseAddr;
-            break;
-          }
-        }
-      } while(Module32Next(ss, &me));
-    }
-    CloseHandle(ss);
-    return ba;
-}
-
-// does the pointer reside in the .code section?
+// does the pointer reside in the heap?
 BOOL IsHeapPtr(LPVOID ptr) {
     MEMORY_BASIC_INFORMATION mbi;
     DWORD                    res;
@@ -234,9 +209,6 @@ LPVOID GetUserSubFromProcess(
     // Finally, read a user subscription
     LoadLibrary(L"efswrt.dll");
 
-    // get base of ntdll.dll in remote process
-    rm  = GetRemoteModuleHandle(pid, L"ntdll.dll");
-    
     // load local copy
     m   = LoadLibrary(L"ntdll.dll");
     dos = (PIMAGE_DOS_HEADER)m;  
@@ -262,16 +234,14 @@ LPVOID GetUserSubFromProcess(
          tbl->Header.NodeByteSize == sizeof(WNF_SUBSCRIPTION_TABLE)) 
       {
         // save the virtual address
-        va = ((PBYTE)&ds[i] - (PBYTE)m) + (PBYTE)rm;
+        va = (PBYTE)&ds[i];
         break;
       }
     }
     if(va != NULL) {
-      ReadProcessMemory(
-        hp, va, &ptr, sizeof(ULONG_PTR), &rd);
-          
-        // read a user subscription from remote
-        sa = GetUserSubFromTable(hp, (LPVOID)ptr, us, sn);
+      ReadProcessMemory(hp, va, &ptr, sizeof(ULONG_PTR), &rd);
+      // read a user subscription from remote
+      sa = GetUserSubFromTable(hp, (LPVOID)ptr, us, sn);
     }
     return sa;
 }

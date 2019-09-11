@@ -704,7 +704,9 @@ BOOL IsHeapPtr(LPVOID ptr) {
 }
 
 // this is never called. just an address to compare with
-void WINAPI ServiceMain(DWORD dwNumServicesArgs, LPWSTR *lpServiceArgVectors) {}
+int WINAPI ServiceMain(DWORD dwNumServicesArgs, LPWSTR *lpServiceArgVectors) {
+  return dwNumServicesArgs * 4;
+}
 
 LPVOID GetDispatchTable(VOID) {
     LPVOID                   m, va = NULL;
