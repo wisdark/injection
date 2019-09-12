@@ -30,14 +30,14 @@
 #include "../ntlib/util.h"
 
 typedef HRESULT(WINAPI *_RtlEncodeRemotePointer)(
-	HANDLE		ProcessHandle,
-	PVOID		  Ptr,
-	PVOID     *EncodedPtr);
+  HANDLE    ProcessHandle,
+  PVOID     Ptr,
+  PVOID     *EncodedPtr);
 
 typedef HRESULT (WINAPI *_RtlDecodeRemotePointer)(
   HANDLE    ProcessHandle,
   PVOID     Ptr,
-	PVOID     *DecodedPtr);
+  PVOID     *DecodedPtr);
 
 // returns TRUE if ptr is heap
 BOOL IsHeapPtr(LPVOID ptr) {
