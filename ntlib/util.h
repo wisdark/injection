@@ -32,11 +32,15 @@
 
 #pragma warning(disable : 4005)
 #pragma warning(disable : 4311)
+#pragma warning(disable : 4312)
 
 #define UNICODE
+#define _WIN32_DCOM
+
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <Wbemidl.h>
 #include <iphlpapi.h>
 #include <tlhelp32.h>
 #include <psapi.h>
@@ -50,6 +54,16 @@
 #include <wchar.h>
 
 #include "../NTlib/nttpp.h"
+
+#pragma comment(lib, "wbemuuid.lib")
+#pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "oleAut32.lib")
+#pragma comment(lib, "advapi32.lib")
+#pragma comment(lib, "shell32.lib")
+
+#pragma comment(lib, "advapi32.lib")
+#pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "dbghelp.lib")
 
 #pragma comment(lib, "advapi32.lib")
 #pragma comment(lib, "shell32.lib")
@@ -201,6 +215,83 @@ PWCHAR pid2name(DWORD pid) {
     return name;
 }
 
+LPVOID GetRemoteModuleHandle(DWORD pid, LPCWSTR lpModuleName) {
+    HANDLE        ss;
+    MODULEENTRY32 me;
+    LPVOID        ba = NULL;
+    
+    ss = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid);
+    
+    if(ss == INVALID_HANDLE_VALUE) return NULL;
+    
+    me.dwSize = sizeof(MODULEENTRY32);
+    
+    if(Module32First(ss, &me)) {
+      do {
+        if(me.th32ProcessID == pid) {
+          if(lstrcmpi(me.szModule, lpModuleName)==0) {
+            ba = me.modBaseAddr;
+            break;
+          }
+        }
+      } while(Module32Next(ss, &me));
+    }
+    CloseHandle(ss);
+    return ba;
+}
+
+PWCHAR addr2sym(HANDLE hp, LPVOID addr) {
+    WCHAR        path[MAX_PATH];
+    BYTE         buf[sizeof(SYMBOL_INFO)+MAX_SYM_NAME*sizeof(WCHAR)];
+    PSYMBOL_INFO si=(PSYMBOL_INFO)buf;
+    static WCHAR name[MAX_PATH];
+    
+    ZeroMemory(path, ARRAYSIZE(path));
+    ZeroMemory(name, ARRAYSIZE(name));
+          
+    GetMappedFileName(
+      hp, addr, path, MAX_PATH);
+    
+    PathStripPath(path);
+    
+    si->SizeOfStruct = sizeof(SYMBOL_INFO);
+    si->MaxNameLen   = MAX_SYM_NAME;
+    
+    if(SymFromAddr(hp, (DWORD64)addr, NULL, si)) {
+      wsprintf(name, L"%s!%hs", path, si->Name);
+    } else {
+      lstrcpy(name, path);
+    }
+    return name;
+}
+
+PWCHAR wnd2proc(HWND hw) {
+    PWCHAR         name=L"N/A";
+    DWORD          pid;
+    HANDLE         ss;
+    BOOL           bResult;
+    PROCESSENTRY32 pe;
+    
+    GetWindowThreadProcessId(hw, &pid);
+    
+    ss = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    
+    if(ss != INVALID_HANDLE_VALUE) {
+      pe.dwSize = sizeof(PROCESSENTRY32);
+      
+      bResult = Process32First(ss, &pe);
+      while (bResult) {
+        if (pe.th32ProcessID == pid) {
+          name = pe.szExeFile;
+          break;
+        }
+        bResult = Process32Next(ss, &pe);
+      }
+      CloseHandle(ss);
+    }
+    return name;
+}
+
 /**
   read a shellcode from disk into memory
 */
@@ -222,6 +313,53 @@ DWORD readpic(PWCHAR path, LPVOID *pic){
       CloseHandle(hf);
     }
     return rd;
+}
+
+// returns TRUE if ptr is heap
+BOOL IsHeapPtr(LPVOID ptr) {
+    MEMORY_BASIC_INFORMATION mbi;
+    DWORD                    res;
+    
+    if(ptr == NULL) return FALSE;
+    
+    // query the pointer
+    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
+    if(res != sizeof(mbi)) return FALSE;
+
+    return ((mbi.State   == MEM_COMMIT    ) &&
+            (mbi.Type    == MEM_PRIVATE   ) && 
+            (mbi.Protect == PAGE_READWRITE));
+}
+
+// returns TRUE if ptr is RX code
+BOOL IsCodePtr(LPVOID ptr) {
+    MEMORY_BASIC_INFORMATION mbi;
+    DWORD                    res;
+    
+    if(ptr == NULL) return FALSE;
+    
+    // query the pointer
+    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
+    if(res != sizeof(mbi)) return FALSE;
+
+    return ((mbi.State   == MEM_COMMIT    ) &&
+            (mbi.Type    == MEM_IMAGE     ) && 
+            (mbi.Protect == PAGE_EXECUTE_READ));
+}
+
+BOOL IsCodePtrEx(HANDLE hp, LPVOID ptr) {
+    MEMORY_BASIC_INFORMATION mbi;
+    DWORD                    res;
+    
+    if(ptr == NULL) return FALSE;
+    
+    // query the pointer
+    res = VirtualQueryEx(hp, ptr, &mbi, sizeof(mbi));
+    if(res != sizeof(mbi)) return FALSE;
+
+    return ((mbi.State   == MEM_COMMIT    ) &&
+            (mbi.Type    == MEM_IMAGE     ) && 
+            (mbi.Protect == PAGE_EXECUTE_READ));
 }
 
 #endif

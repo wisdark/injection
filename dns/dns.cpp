@@ -121,47 +121,6 @@ HRESULT ShellExecInExplorer(PCWSTR pszFile) {
     return hr;
 }
 
-// does the pointer reside in the .code section?
-BOOL IsCodePtr(LPVOID ptr) {
-    MEMORY_BASIC_INFORMATION mbi;
-    DWORD                    res;
-    
-    if(ptr == NULL) return FALSE;
-    
-    // query the pointer
-    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
-    if(res != sizeof(mbi)) return FALSE;
-
-    return ((mbi.State   == MEM_COMMIT    ) &&
-            (mbi.Type    == MEM_IMAGE     ) && 
-            (mbi.Protect == PAGE_EXECUTE_READ));
-}
-
-LPVOID GetRemoteModuleHandle(DWORD pid, LPCWSTR lpModuleName) {
-    HANDLE        ss;
-    MODULEENTRY32 me;
-    LPVOID        ba = NULL;
-    
-    ss = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid);
-    
-    if(ss == INVALID_HANDLE_VALUE) return NULL;
-    
-    me.dwSize = sizeof(MODULEENTRY32);
-    
-    if(Module32First(ss, &me)) {
-      do {
-        if(me.th32ProcessID == pid) {
-          if(lstrcmpi(me.szModule, lpModuleName)==0) {
-            ba = me.modBaseAddr;
-            break;
-          }
-        }
-      } while(Module32Next(ss, &me));
-    }
-    CloseHandle(ss);
-    return ba;
-}
-
 LPVOID GetDnsApiAddr(DWORD pid) {
     LPVOID                m, rm, va = NULL;
     PIMAGE_DOS_HEADER     dos;

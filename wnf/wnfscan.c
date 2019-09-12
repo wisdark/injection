@@ -229,24 +229,6 @@ VOID ScanProcess(PPROCESSENTRY32 pe32, ULONG64 stateName) {
     }
 }
 
-BOOL IsHeapPtr(LPVOID ptr) {
-    MEMORY_BASIC_INFORMATION mbi;
-    DWORD                    res;
-    
-    if(ptr == NULL) return FALSE;
-    
-    // query the pointer
-    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
-    if(res != sizeof(mbi)) return FALSE;
-
-    return ((mbi.State   == MEM_COMMIT    ) &&
-            (mbi.Type    == MEM_PRIVATE   ) && 
-            (mbi.Protect == PAGE_READWRITE));
-}
-
-// Relative Virtual Address to Virtual Address
-#define RVA2VA(type, base, rva) (type)((ULONG_PTR) base + rva)
-
 // read the VA of WNF sub table in NTDLL data section
 LPVOID GetWnfSubTableVA(VOID) {
     LPVOID                   ntdll, va = NULL;

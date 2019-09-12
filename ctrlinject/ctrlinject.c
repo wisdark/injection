@@ -34,42 +34,10 @@ typedef HRESULT(WINAPI *_RtlEncodeRemotePointer)(
   PVOID     Ptr,
   PVOID     *EncodedPtr);
 
-typedef HRESULT (WINAPI *_RtlDecodeRemotePointer)(
+typedef HRESULT(WINAPI *_RtlDecodeRemotePointer)(
   HANDLE    ProcessHandle,
   PVOID     Ptr,
   PVOID     *DecodedPtr);
-
-// returns TRUE if ptr is heap
-BOOL IsHeapPtr(LPVOID ptr) {
-    MEMORY_BASIC_INFORMATION mbi;
-    DWORD                    res;
-    
-    if(ptr == NULL) return FALSE;
-    
-    // query the pointer
-    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
-    if(res != sizeof(mbi)) return FALSE;
-
-    return ((mbi.State   == MEM_COMMIT    ) &&
-            (mbi.Type    == MEM_PRIVATE   ) && 
-            (mbi.Protect == PAGE_READWRITE));
-}
-
-// returns TRUE if ptr is RX code
-BOOL IsCodePtr(LPVOID ptr) {
-    MEMORY_BASIC_INFORMATION mbi;
-    DWORD                    res;
-    
-    if(ptr == NULL) return FALSE;
-    
-    // query the pointer
-    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
-    if(res != sizeof(mbi)) return FALSE;
-
-    return ((mbi.State   == MEM_COMMIT    ) &&
-            (mbi.Type    == MEM_IMAGE     ) && 
-            (mbi.Protect == PAGE_EXECUTE_READ));
-}
 
 BOOL WINAPI HandlerRoutine(DWORD dwCtrlType) {
     switch ( dwCtrlType ) {
@@ -127,46 +95,6 @@ LPVOID GetHandlerListVA(VOID) {
     // remove handler
     SetConsoleCtrlHandler(HandlerRoutine, FALSE);
     return va;
-}
-
-PWCHAR addr2sym(HANDLE hp, LPVOID addr) {
-    WCHAR        path[MAX_PATH];
-    BYTE         buf[sizeof(SYMBOL_INFO)+MAX_SYM_NAME*sizeof(WCHAR)];
-    PSYMBOL_INFO si=(PSYMBOL_INFO)buf;
-    static WCHAR name[MAX_PATH];
-    
-    ZeroMemory(path, ARRAYSIZE(path));
-    ZeroMemory(name, ARRAYSIZE(name));
-          
-    GetMappedFileName(
-      hp, addr, path, MAX_PATH);
-    
-    PathStripPath(path);
-    
-    si->SizeOfStruct = sizeof(SYMBOL_INFO);
-    si->MaxNameLen   = MAX_SYM_NAME;
-    
-    if(SymFromAddr(hp, (DWORD64)addr, NULL, si)) {
-      wsprintf(name, L"%s!%hs", path, si->Name);
-    } else {
-      lstrcpy(name, path);
-    }
-    return name;
-}
-
-BOOL IsCodePtrEx(HANDLE hp, LPVOID ptr) {
-    MEMORY_BASIC_INFORMATION mbi;
-    DWORD                    res;
-    
-    if(ptr == NULL) return FALSE;
-    
-    // query the pointer
-    res = VirtualQueryEx(hp, ptr, &mbi, sizeof(mbi));
-    if(res != sizeof(mbi)) return FALSE;
-
-    return ((mbi.State   == MEM_COMMIT    ) &&
-            (mbi.Type    == MEM_IMAGE     ) && 
-            (mbi.Protect == PAGE_EXECUTE_READ));
 }
 
 VOID ctrl_list(DWORD pid) {

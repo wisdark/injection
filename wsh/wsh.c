@@ -80,38 +80,6 @@ typedef struct _WSHINFO_T {
 // Relative Virtual Address to Virtual Address
 #define RVA2VA(type, base, rva) (type)((ULONG_PTR) base + rva)
 
-// returns TRUE if ptr is heap
-BOOL IsHeapPtr(LPVOID ptr) {
-    MEMORY_BASIC_INFORMATION mbi;
-    DWORD                    res;
-    
-    if(ptr == NULL) return FALSE;
-    
-    // query the pointer
-    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
-    if(res != sizeof(mbi)) return FALSE;
-
-    return ((mbi.State   == MEM_COMMIT    ) &&
-            (mbi.Type    == MEM_PRIVATE   ) && 
-            (mbi.Protect == PAGE_READWRITE));
-}
-
-// returns TRUE if ptr is RX code
-BOOL IsCodePtr(LPVOID ptr) {
-    MEMORY_BASIC_INFORMATION mbi;
-    DWORD                    res;
-    
-    if(ptr == NULL) return FALSE;
-    
-    // query the pointer
-    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
-    if(res != sizeof(mbi)) return FALSE;
-
-    return ((mbi.State   == MEM_COMMIT    ) &&
-            (mbi.Type    == MEM_IMAGE     ) && 
-            (mbi.Protect == PAGE_EXECUTE_READ));
-}
-
 // calculate the RVA of Socket Helpder DLL LIST_ENTRY in MSWSOCK data section
 DWORD GetSockHelperDllListHeadRVA(VOID) {
     WSADATA                  wsa;
@@ -170,31 +138,6 @@ DWORD GetSockHelperDllListHeadRVA(VOID) {
       }
     }
     return rva;
-}
-
-// return base address of DLL in remote process
-LPVOID GetRemoteModuleHandle(DWORD pid, LPCWSTR lpModuleName) {
-    HANDLE        ss;
-    MODULEENTRY32 me;
-    LPVOID        ba = NULL;
-    
-    ss = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid);
-    if(ss == INVALID_HANDLE_VALUE) return NULL;
-    
-    me.dwSize = sizeof(MODULEENTRY32);
-    
-    if(Module32First(ss, &me)) {
-      do {
-        if(me.th32ProcessID == pid) {
-          if(lstrcmpi(me.szModule, lpModuleName)==0) {
-            ba = me.modBaseAddr;
-            break;
-          }
-        }
-      } while(Module32Next(ss, &me));
-    }
-    CloseHandle(ss);
-    return ba;
 }
 
 // add process, local port and address to existing entry or create new one
@@ -304,32 +247,6 @@ PWCHAR guid2name(PWCHAR guid) {
       }
     }
     return str;
-}
-
-// resolve symbol for addr without using SymFromName
-PWCHAR addr2sym(HANDLE hp, LPVOID addr) {
-    WCHAR        path[MAX_PATH];
-    BYTE         buf[sizeof(SYMBOL_INFO)+MAX_SYM_NAME*sizeof(WCHAR)];
-    PSYMBOL_INFO si=(PSYMBOL_INFO)buf;
-    static WCHAR name[MAX_PATH];
-    
-    ZeroMemory(path, ARRAYSIZE(path));
-    ZeroMemory(name, ARRAYSIZE(name));
-          
-    GetMappedFileName(
-      hp, addr, path, MAX_PATH);
-    
-    PathStripPath(path);
-    
-    si->SizeOfStruct = sizeof(SYMBOL_INFO);
-    si->MaxNameLen   = MAX_SYM_NAME;
-    
-    if(SymFromAddr(hp, (DWORD64)addr, NULL, si)) {
-      wsprintf(name, L"%s!%hs", path, si->Name);
-    } else {
-      lstrcpy(name, path);
-    }
-    return name;
 }
           
 // list WINSOCK_HELPER_DLL_INFO for pid

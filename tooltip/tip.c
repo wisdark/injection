@@ -88,59 +88,6 @@ VOID commctrl_inject(LPVOID payload, DWORD payloadSize) {
     CloseHandle(hp);
 }
 
-// GetWindowModuleFileName doesn't always work.
-PWCHAR wnd2proc(HWND hw) {
-    PWCHAR         name=L"N/A";
-    DWORD          pid;
-    HANDLE         ss;
-    BOOL           bResult;
-    PROCESSENTRY32 pe;
-    
-    GetWindowThreadProcessId(hw, &pid);
-    
-    ss = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    
-    if(ss != INVALID_HANDLE_VALUE) {
-      pe.dwSize = sizeof(PROCESSENTRY32);
-      
-      bResult = Process32First(ss, &pe);
-      while (bResult) {
-        if (pe.th32ProcessID == pid) {
-          name = pe.szExeFile;
-          break;
-        }
-        bResult = Process32Next(ss, &pe);
-      }
-      CloseHandle(ss);
-    }
-    return name;
-}
-
-PWCHAR addr2sym(HANDLE hp, LPVOID addr) {
-    WCHAR        path[MAX_PATH];
-    BYTE         buf[sizeof(SYMBOL_INFO)+MAX_SYM_NAME*sizeof(WCHAR)];
-    PSYMBOL_INFO si=(PSYMBOL_INFO)buf;
-    static WCHAR name[MAX_PATH];
-    
-    ZeroMemory(path, ARRAYSIZE(path));
-    ZeroMemory(name, ARRAYSIZE(name));
-          
-    GetMappedFileName(
-      hp, addr, path, MAX_PATH);
-    
-    PathStripPath(path);
-    
-    si->SizeOfStruct = sizeof(SYMBOL_INFO);
-    si->MaxNameLen   = MAX_SYM_NAME;
-    
-    if(SymFromAddr(hp, (DWORD64)addr, NULL, si)) {
-      wsprintf(name, L"%s!%hs", path, si->Name);
-    } else {
-      lstrcpy(name, path);
-    }
-    return name;
-}
-
 // WorkerA or WorkerW created by SHCreateWorkerWindowW
 BOOL IsClassPtr(HWND hwnd, LPVOID ptr) {
     MEMORY_BASIC_INFORMATION mbi;

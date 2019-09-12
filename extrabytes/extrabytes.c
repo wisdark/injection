@@ -27,15 +27,7 @@
   ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
   POSSIBILITY OF SUCH DAMAGE. */
   
-#define UNICODE
-
-#include <windows.h>
-#include <tlhelp32.h>
-
-#include <stdio.h>
-
-#pragma comment(lib, "user32.lib")
-#pragma comment(lib, "shell32.lib")
+#include "../ntlib/util.h"
 
 // extra window memory bytes for Shell_TrayWnd
 typedef struct _ctray_vtable {
@@ -48,26 +40,6 @@ typedef struct _ctray_vtable {
 typedef struct _ctray_obj {
     CTray *vtbl;
 } CTrayObj;
-
-DWORD readpic(PWCHAR path, LPVOID *pic){
-    HANDLE hf;
-    DWORD  len,rd=0;
-    
-    // 1. open the file
-    hf=CreateFile(path, GENERIC_READ, 0, 0,
-      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-      
-    if(hf!=INVALID_HANDLE_VALUE){
-      // get file size
-      len=GetFileSize(hf, 0);
-      // allocate memory
-      *pic=malloc(len + 16);
-      // read file contents into memory
-      ReadFile(hf, *pic, len, &rd, 0);
-      CloseHandle(hf);
-    }
-    return rd;
-}
 
 VOID extraBytes(LPVOID payload, DWORD payloadSize){
     LPVOID    cs, ds;

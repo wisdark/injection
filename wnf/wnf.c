@@ -167,25 +167,6 @@ LPVOID GetUserSubFromProcessOld(
     return sa;
 }
 
-// does the pointer reside in the heap?
-BOOL IsHeapPtr(LPVOID ptr) {
-    MEMORY_BASIC_INFORMATION mbi;
-    DWORD                    res;
-    
-    if(ptr == NULL) return FALSE;
-    
-    // query the pointer
-    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
-    if(res != sizeof(mbi)) return FALSE;
-
-    return ((mbi.State   == MEM_COMMIT    ) &&
-            (mbi.Type    == MEM_PRIVATE   ) && 
-            (mbi.Protect == PAGE_READWRITE));
-}
-
-// Relative Virtual Address to Virtual Address
-#define RVA2VA(type, base, rva) (type)((ULONG_PTR) base + rva)
-
 LPVOID GetUserSubFromProcess(
   HANDLE hp, DWORD pid, PWNF_USER_SUBSCRIPTION us, ULONG64 sn)
 {
