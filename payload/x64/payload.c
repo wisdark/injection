@@ -109,6 +109,10 @@ INT WSHGetSocketInformation(
     INT    OptionLength)
 #endif
 
+#ifdef CTRL
+BOOL WINAPI HandlerRoutine(DWORD dwCtrlType)
+#endif
+
 #ifdef DDE
 HDDEDATA DDECallback(
   UINT wType,
@@ -181,6 +185,10 @@ NTSTATUS WnfCallback (
     // for EM_STREAMIN, indicate an error.
     #if defined(STREAM)
       return (DWORD)~0UL;
+    #endif
+    
+    #if defined(CTRL)
+      return TRUE;
     #endif
     
     #if !defined(ALPC) && !defined(HYPHENATE) && !defined(RELEASE) && !defined(QUERYINTERFACE)

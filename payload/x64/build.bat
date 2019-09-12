@@ -87,3 +87,8 @@ cl -DQUERYINTERFACE -c -nologo -Os -O2 -Gm- -GR- -EHa -Oi -GS- payload.c
 link /order:@queryinterface.txt /entry:QueryInterface /fixed payload.obj -subsystem:console -nodefaultlib -stack:0x100000,0x100000
 xbin payload.exe .text
 move payload.exe64.bin ..\..\tooltip\queryinterface.bin
+echo.
+cl -DCTRL -c -nologo -Os -O2 -Gm- -GR- -EHa -Oi -GS- payload.c
+link /order:@ctrl.txt /entry:HandlerRoutine /fixed payload.obj -subsystem:console -nodefaultlib -stack:0x100000,0x100000
+xbin payload.exe .text
+move payload.exe64.bin ..\..\ctrlinject\handler.bin
