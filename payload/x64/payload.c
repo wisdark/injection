@@ -29,6 +29,12 @@
   
 #include "../../NTlib//nttpp.h"
 
+#include <evntrace.h>
+#include <pla.h>
+#include <wbemidl.h>
+#include <wmistr.h>
+#include <Evntcons.h>
+
 typedef UINT (WINAPI *WinExec_t)(
   _In_ LPCSTR lpCmdLine, _In_ UINT uCmdShow);
 
@@ -148,10 +154,23 @@ NTSTATUS WnfCallback (
     PVOID                             Buffer,
     ULONG                             BufferSize)
 #endif
+
+#ifdef ETW
+void WINAPI EtwEnableCallback (
+  LPCGUID                  SourceId,
+  ULONG                    IsEnabled,
+  UCHAR                    Level,
+  ULONGLONG                MatchAnyKeyword,
+  ULONGLONG                MatchAllKeyword,
+  PEVENT_FILTER_DESCRIPTOR FilterData,
+  PVOID                    CallbackContext)
+#endif
+
 {
     WinExec_t pWinExec;
     DWORD     szWinExec[2],
               szNotepad[3];
+
     #ifdef ALPC
       PTP_ALPC_CALLBACK  pLrpcIoComplete;
       TP_SIMPLE_CALLBACK *tp=(TP_SIMPLE_CALLBACK*)Context;
@@ -191,7 +210,7 @@ NTSTATUS WnfCallback (
       return TRUE;
     #endif
     
-    #if !defined(ALPC) && !defined(HYPHENATE) && !defined(RELEASE) && !defined(QUERYINTERFACE)
+    #if !defined(ETW) && !defined(ALPC) && !defined(HYPHENATE) && !defined(RELEASE) && !defined(QUERYINTERFACE)
       return 0;
     #endif
 }

@@ -55,6 +55,7 @@ typedef long NTSTATUS;
 //------------------------------------------------------------------------------
 // Structures
 
+
 #ifndef _MSC_VER
 typedef struct _PROCESSOR_NUMBER {
   WORD Group;
@@ -111,6 +112,22 @@ typedef struct _UNICODE_STRING
     PWSTR  Buffer;
 
 } UNICODE_STRING, *PUNICODE_STRING;
+
+typedef struct _RTL_BUFFER  {
+    PUCHAR Buffer;
+    PUCHAR StaticBuffer;
+    SIZE_T Size;
+    SIZE_T StaticSize;
+    SIZE_T ReservedForAllocatedSize;
+    PVOID ReservedForIMalloc;
+} RTL_BUFFER, *PRTL_BUFFER;
+
+typedef struct _RTL_UNICODE_STRING_BUFFER {  
+    UNICODE_STRING String; 
+    RTL_BUFFER ByteBuffer; 
+    UCHAR MinimumStaticBufferForTerminalNul[sizeof(WCHAR)];
+} RTL_UNICODE_STRING_BUFFER, *PRTL_UNICODE_STRING_BUFFER;
+
 #endif // _NTSECAPI_
 
 typedef STRING ANSI_STRING;
