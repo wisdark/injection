@@ -342,7 +342,7 @@ PRTL_BALANCED_NODE etw_get_reg(
     hr = IIDFromString(prov, &id);
     if(hr != S_OK) {
       xstrerror(L"IIDFromString(%s)", prov);
-      return FALSE;
+      return NULL;
     }
     
     // read EtwpRegistrationTable into memory
