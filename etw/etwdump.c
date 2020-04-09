@@ -272,7 +272,7 @@ VOID etw_search_process(
       sizeof(RTL_RB_TREE), &rd);
     
     wprintf(L"*********************************************\n");
-    wprintf(L"  [ EtwpRegistrationTable for %ws:%i found at %p\n", 
+    wprintf(L"  [ EtwpRegistrationTable for %ws:%i found at %p\n\n", 
       pe32->szExeFile, pe32->th32ProcessID, etw);
       
     // dump nodes
