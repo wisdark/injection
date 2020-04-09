@@ -334,7 +334,6 @@ PRTL_BALANCED_NODE etw_get_reg(
 {
     RTL_RB_TREE        tree;
     SIZE_T             rd;
-    BOOL               found = FALSE;
     PRTL_BALANCED_NODE node;
     int                cmp;
     GUID               id;
@@ -365,7 +364,6 @@ PRTL_BALANCED_NODE etw_get_reg(
       
       // equal?
       if(cmp == 0) {
-        found = TRUE;
         break;
       } else if(cmp < 0) {
         node = re->RegList.Children[0];
@@ -673,7 +671,7 @@ VOID etw_search_system(DWORD pid, PWCHAR dll, PWCHAR prov, int opt) {
 }
 
 void usage(void) {
-    wprintf(L"usage: etwscan [options] <process>\n\n");
+    wprintf(L"usage: etwdump [options] <process>\n\n");
     wprintf(L"  -i <file>    Inject shellcode into remote process (must use same prototype as ETW callback)\n");
     wprintf(L"  -d           Disable providers.\n");
     wprintf(L"  -m <dll>     Filter by DLL.\n");
