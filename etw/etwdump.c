@@ -152,6 +152,7 @@ VOID etw_reg_info(
     BYTE         buffer[sizeof(SYMBOL_INFO)+MAX_SYM_NAME*sizeof(WCHAR)];
     PSYMBOL_INFO pSymbol=(PSYMBOL_INFO)buffer;
     OLECHAR      id[40];
+    ULONG_PTR    disp;
     
     // increase number of providers found/displayed
     prov_cnt++;
@@ -179,7 +180,7 @@ VOID etw_reg_info(
     pSymbol->SizeOfStruct = sizeof(SYMBOL_INFO);
     pSymbol->MaxNameLen   = MAX_SYM_NAME;
     
-    if(SymFromAddr(hp, (DWORD64)re->Callback, 0, pSymbol)) {
+    if(SymFromAddr(hp, (ULONG_PTR)re->Callback, NULL, pSymbol)) {
       wprintf(L"!%hs", pSymbol->Name);
     }
     putchar('\n');
@@ -211,9 +212,17 @@ VOID etw_reg_info(
       
     // display the registration handle that
     // can be used with EtwEventUnregister
-    wprintf(L"%*sReg Handle  : %p\n\n",
+    wprintf(L"%*sReg Handle  : %p\n",
       tabs, L"\t", 
       (PVOID)((ULONG64)node | (ULONG64)re->RegIndex << 48));
+      
+    wprintf(L"%*sThread      : %p\n",
+      tabs, L"\t",
+      (PVOID)re->Thread);
+      
+    wprintf(L"%*sReplyHandle : %p\n\n",
+      tabs, L"\t",
+      (PVOID)re->ReplyHandle);
 }
 
 // dump nodes
@@ -262,9 +271,14 @@ VOID etw_search_process(
 {
     SIZE_T      rd;
     RTL_RB_TREE tree;
+    CHAR        path[MAX_PATH];
     
-    SymInitialize(hp, NULL, TRUE);
     SymSetOptions(SYMOPT_DEFERRED_LOADS);
+    SymInitialize(hp, NULL, TRUE);
+    
+    if(SymGetSearchPath(hp, path, MAX_PATH)) {
+      printf("Search path for symbols : %s\n", path);
+    }
     
     // read EtwpRegistrationTable into memory
     ReadProcessMemory(
@@ -548,9 +562,12 @@ BOOL etw_disable(
     
     // resolve address of API for creating new thread
     m = GetModuleHandle(L"ntdll.dll");
+    
     pRtlCreateUserThread = (RtlCreateUserThread_t)
         GetProcAddress(m, "RtlCreateUserThread");
-    pEtwEventUnregister = (EventUnregister_t)GetProcAddress(m, "EtwEventUnregister");
+        
+    pEtwEventUnregister = (EventUnregister_t)
+        GetProcAddress(m, "EtwEventUnregister");
     
     // create registration handle    
     RegHandle           = (REGHANDLE)((ULONG64)node | (ULONG64)index << 48);
