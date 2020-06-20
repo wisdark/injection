@@ -355,7 +355,8 @@ BOOL EnablePrivilege(PCHAR szPrivilege){
       tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
 
       // adjust token
-      bResult = AdjustTokenPrivileges(hToken, FALSE, &tp, 0, NULL, NULL);
+      AdjustTokenPrivileges(hToken, FALSE, &tp, 0, NULL, NULL);
+      bResult = GetLastError() == ERROR_SUCESS;
     }
     CloseHandle(hToken);
     return bResult;

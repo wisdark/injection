@@ -161,7 +161,8 @@ BOOL SetPrivilege(PWCHAR szPrivilege, BOOL bEnable){
       tp.Privileges[0].Attributes = bEnable?SE_PRIVILEGE_ENABLED:SE_PRIVILEGE_REMOVED;
 
       // adjust token
-      bResult = AdjustTokenPrivileges(hToken, FALSE, &tp, 0, NULL, NULL);
+      AdjustTokenPrivileges(hToken, FALSE, &tp, 0, NULL, NULL);
+      bResult = GetLastError() == ERROR_SUCCESS;
     }
     CloseHandle(hToken);
     return bResult;
@@ -290,6 +291,70 @@ PWCHAR wnd2proc(HWND hw) {
       CloseHandle(ss);
     }
     return name;
+}
+
+void ShowProcessIntegrityLevel(DWORD pid)
+{
+ HANDLE hToken;
+ HANDLE hProcess;
+
+ DWORD dwLengthNeeded;
+ DWORD dwError = ERROR_SUCCESS;
+
+ PTOKEN_MANDATORY_LABEL pTIL = NULL;
+ LPWSTR pStringSid;
+ DWORD dwIntegrityLevel;
+ 
+ hProcess = OpenProcess(PROCESS_ALL_ACCESS,FALSE,pid);
+ if (OpenProcessToken(hProcess, TOKEN_QUERY, &hToken)) 
+ {
+  // Get the Integrity level.
+  if (!GetTokenInformation(hToken, TokenIntegrityLevel, 
+      NULL, 0, &dwLengthNeeded))
+  {
+   dwError = GetLastError();
+   if (dwError == ERROR_INSUFFICIENT_BUFFER)
+   {
+    pTIL = (PTOKEN_MANDATORY_LABEL)LocalAlloc(0, 
+         dwLengthNeeded);
+    if (pTIL != NULL)
+    {
+     if (GetTokenInformation(hToken, TokenIntegrityLevel, 
+         pTIL, dwLengthNeeded, &dwLengthNeeded))
+     {
+      dwIntegrityLevel = *GetSidSubAuthority(pTIL->Label.Sid, 
+        (DWORD)(UCHAR)(*GetSidSubAuthorityCount(pTIL->Label.Sid)-1));
+ 
+      if (dwIntegrityLevel == SECURITY_MANDATORY_LOW_RID)
+      {
+       // Low Integrity
+       wprintf(L"Low");
+      }
+      else if (dwIntegrityLevel >= SECURITY_MANDATORY_MEDIUM_RID && 
+           dwIntegrityLevel < SECURITY_MANDATORY_HIGH_RID)
+      {
+       // Medium Integrity
+       wprintf(L"Medium");
+      }
+      else if (dwIntegrityLevel >= SECURITY_MANDATORY_HIGH_RID)
+      {
+       // High Integrity
+       wprintf(L"High Integrity");
+      }
+      else if (dwIntegrityLevel >= SECURITY_MANDATORY_SYSTEM_RID)
+      {
+       // System Integrity
+       wprintf(L"System Integrity");
+      }
+     }
+     LocalFree(pTIL);
+    }
+   }
+  }
+  CloseHandle(hToken);
+ }
+ CloseHandle(hProcess);
+ putchar('\n');
 }
 
 /**
