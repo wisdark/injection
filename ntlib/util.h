@@ -39,7 +39,9 @@
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <windows.h>
+#include <Windows.h>
+#include <processsnapshot.h>
+#include <memoryapi.h>
 #include <Wbemidl.h>
 #include <iphlpapi.h>
 #include <tlhelp32.h>
@@ -49,6 +51,9 @@
 #include <richedit.h>
 #include <shlobj.h>
 
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <wchar.h>
@@ -59,21 +64,14 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "oleAut32.lib")
 #pragma comment(lib, "advapi32.lib")
-#pragma comment(lib, "shell32.lib")
-
-#pragma comment(lib, "advapi32.lib")
-#pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "dbghelp.lib")
-
-#pragma comment(lib, "advapi32.lib")
-#pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "winspool.lib")
-#pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "dbghelp.lib")
 #pragma comment(lib, "user32.lib")
-#pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "shlwapi.lib")
-#pragma comment(lib, "oleaut32.lib")
+#pragma comment(lib, "kernel32.lib")
+#pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "OneCore.lib")
 
 // Relative Virtual Address to Virtual Address
 #define RVA2VA(type, base, rva) (type)((ULONG_PTR) base + rva)
@@ -425,6 +423,33 @@ BOOL IsCodePtrEx(HANDLE hp, LPVOID ptr) {
     return ((mbi.State   == MEM_COMMIT    ) &&
             (mbi.Type    == MEM_IMAGE     ) && 
             (mbi.Protect == PAGE_EXECUTE_READ));
+}
+
+BOOL IsMapPtr(LPVOID ptr) {
+    MEMORY_BASIC_INFORMATION mbi;
+    DWORD                    res;
+    
+    if(ptr == NULL) return FALSE;
+    
+    // query the pointer
+    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
+    if(res != sizeof(mbi)) return FALSE;
+
+    return ((mbi.State   == MEM_COMMIT) &&
+            (mbi.Type    == MEM_MAPPED));
+}
+
+BOOL IsReadWritePtr(LPVOID ptr) {
+    MEMORY_BASIC_INFORMATION mbi;
+    DWORD                    res;
+    
+    if(ptr == NULL) return FALSE;
+    
+    // query the pointer
+    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
+    if(res != sizeof(mbi)) return FALSE;
+
+    return (mbi.Protect == PAGE_READWRITE);    
 }
 
 #endif
