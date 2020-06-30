@@ -125,7 +125,7 @@ char LOAD_DLL[] = {
 
 char INC_RDI[] = {
   /* 0000 */ "\xae"                 /* scasb                 */
-  /* 0001 */ "\x00\x4d\x00"         /* add   byte [ebp], cl  */
+  /* 0001 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
 };
 
 // Store two null bytes
@@ -133,9 +133,9 @@ char INC_RDI[] = {
 
 char STORE_NULL[] = {
   /* 0000 */ "\xaa"                 /* stosb                 */
-  /* 0001 */ "\x00\x4d\x00"         /* add   byte [ebp], cl  */
+  /* 0001 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
   /* 0004 */ "\xaa"                 /* stosb                 */
-  /* 0005 */ "\x00\x4d\x00"         /* add   byte [ebp], cl  */
+  /* 0005 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
 };
 
 #define EM_END_SIZE 2
