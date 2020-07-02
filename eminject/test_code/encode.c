@@ -79,36 +79,6 @@ char STORE_WORD[] = {
   /* 0023 */ "\x00\x4d\x00"         /* add   byte [ebp], cl  */
 };
 
-#define TEST_SIZE 66
-
-char TEST[] = {
-  /* 0000 */ "\x6a\x00"             /* push  0                */
-  /* 0002 */ "\x54"                 /* push  esp              */
-  /* 0003 */ "\x00\x4d\x00"         /* add   byte [ebp], cl   */
-  /* 0006 */ "\x5f"                 /* pop   edi              */
-  /* 0007 */ "\x00\x4d\x00"         /* add   byte [ebp], cl   */
-  /* 000A */ "\xb8\x00\x12\x00\xff" /* mov   eax, 0xff001200  */
-  /* 000F */ "\x00\x27"             /* add   byte [edi], ah   */
-  /* 0011 */ "\x00\x4d\x00"         /* add   byte [ebp], cl   */
-  /* 0014 */ "\xae"                 /* scasb                  */
-  /* 0015 */ "\x00\x4d\x00"         /* add   byte [ebp], cl   */
-  /* 0018 */ "\xb8\x00\x12\x00\xff" /* mov   eax, 0xff001200  */
-  /* 001D */ "\x00\x27"             /* add   byte [edi], ah   */
-  /* 001F */ "\x00\x4d\x00"         /* add   byte [ebp], cl   */
-  /* 0022 */ "\xae"                 /* scasb                  */
-  /* 0023 */ "\x00\x4d\x00"         /* add   byte [ebp], cl   */
-  /* 0026 */ "\xb8\x00\x12\x00\xff" /* mov   eax, 0xff001200  */
-  /* 002B */ "\x00\x27"             /* add   byte [edi], ah   */
-  /* 002D */ "\x00\x4d\x00"         /* add   byte [ebp], cl   */
-  /* 0030 */ "\xae"                 /* scasb                  */
-  /* 0031 */ "\x00\x4d\x00"         /* add   byte [ebp], cl   */
-  /* 0034 */ "\xb8\x00\x12\x00\xff" /* mov   eax, 0xff001200  */
-  /* 0039 */ "\x00\x27"             /* add   byte [edi], ah   */
-  /* 003B */ "\x00\x4d\x00"         /* add   byte [ebp], cl   */
-  /* 003E */ "\xae"                 /* scasb                  */
-  /* 003F */ "\x00\x4d\x00"         /* add   byte [ebp], cl   */
-};
-
 // Initialize RBP for writing
 #define CP1252_PROLOG_SIZE 4
 
