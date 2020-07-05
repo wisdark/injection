@@ -155,7 +155,7 @@ char CP1252_EPILOG[] = {
   /* 001A */ "\x5c"                 /* pop  rsp              */
   /* 001B */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
   /* 001E */ "\x52"                 /* push rdx              */
-  /* 001F */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 001F */ "\x00\x45\x00"         /* add  byte [rbp], al   */
   /* 0022 */ "\xc3"                 /* ret                   */
   /* 0024 */ "\x00"
 };
