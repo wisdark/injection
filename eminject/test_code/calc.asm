@@ -5,6 +5,62 @@
     ;
     bits 32
     
+    dec dword[eax]
+    
+    ; 1. Initialize rbp
+    mov    al, 0
+    enter  256, 0
+    
+    ; 2. Store rbp
+    push   ebp
+    add    [ebp], al
+    
+    ; 3. Create local variable for rbp
+    push   0
+    push   esp
+    add    [ebp], al
+    pop    ebp
+    add    [ebp], cl
+    
+    ; 4. Store lpch pointer
+    push   ecx
+    add    [ebp], cl
+    
+    ; 5. Load lpch pointer into rsi
+    pop    esi
+    add    [ebp], cl
+    
+    ; 6. Load address of where to store decoder
+    lodsd
+    add    [ebp], cl
+    
+    ; 7. Store address on stack 
+    push   eax
+    add    [ebp], cl
+    
+    ; 8. Store address on stack
+    push   eax
+    add    [ebp], cl
+    
+    ; 9. Load address into rdi
+    pop    edi
+    add    [ebp], cl
+    
+    ; 10. Read and store byte
+    movsb
+    add    [ebp], cl
+    
+    ; 11. Skip byte
+    lodsb
+    add    [ebp], cl
+    
+    ; ****************************************
+    ; repeat steps 10-11 until bytes processed
+    ; ****************************************
+    
+    ; execute decoder
+    ret
+    
     ; step 1.
     ; subtract 8 from RSP to align
     ; initialize RBP for writing

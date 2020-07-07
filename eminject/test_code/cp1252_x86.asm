@@ -1,25 +1,14 @@
 
-; cp1252 decoder in 27 bytes of x86/amd64 assembly
+; cp1252 decoder in 40 bytes of x86/amd64 assembly
 ; presumes to be executing in RWX memory
 ; needs stack allocation if executing from RX memory
 ;
 ; odzhan
 
-; <cp1252 compatible decoder>
-; <cp1252 encoded decoder>
-; <cp1252 encoded data>
-;
     bits 32
     
     %define CP1252_KEY 0x4D
     
-    %ifndef BIN
-      global cp1252_decode
-      global _cp1252_decode
-    %endif
-    
-cp1252_decode:
-_cp1252_decode:
     jmp    init_decode       ; read the program counter
     
     ; esi = source

