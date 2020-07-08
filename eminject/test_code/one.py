@@ -14,7 +14,7 @@ def is_allowed(ch):
     return False
   return True
   
-for i in range(1, 255):
+for i in range(0, 256):
   if not is_allowed(i): 
     continue
   cs[0] = i

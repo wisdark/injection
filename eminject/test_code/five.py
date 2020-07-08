@@ -3,7 +3,7 @@ from capstone import *
 import array
 
 md = Cs(CS_ARCH_X86, CS_MODE_64)
-cs = bytearray(b'\x00\x00\x00\x00\x00')
+cs = bytearray(b'\x00\x00\x00\x00\x00\x00')
 
 def allowed(ch):
   if(ch >= 0x80 and ch <= 0x8C):
@@ -14,15 +14,15 @@ def allowed(ch):
     return False
   return True
   
-for i in range(1, 255):
+for i in range(0, 256):
   if not allowed(i): 
     continue
   cs[0] = i
-  for j in range(1, 255):
+  for j in range(0, 256):
     if not allowed(j):
       continue
     cs[2] = j
-    for k in range(1, 255):
+    for k in range(0, 256):
       if not allowed(k):
         continue
       cs[4] = k

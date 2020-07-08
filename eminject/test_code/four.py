@@ -14,11 +14,11 @@ def is_allowed(ch):
     return False
   return True
   
-for i in range(1, 255):
+for i in range(0, 256):
   if not is_allowed(i): 
     continue
   cs[1] = i
-  for j in range(1, 255):
+  for j in range(0, 256):
     cs[3] = j
     for insn in md.disasm(cs, 0):
       if insn.size == 4:
