@@ -39,7 +39,9 @@
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <windows.h>
+#include <Windows.h>
+#include <processsnapshot.h>
+#include <memoryapi.h>
 #include <Wbemidl.h>
 #include <iphlpapi.h>
 #include <tlhelp32.h>
@@ -49,6 +51,9 @@
 #include <richedit.h>
 #include <shlobj.h>
 
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <wchar.h>
@@ -59,21 +64,14 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "oleAut32.lib")
 #pragma comment(lib, "advapi32.lib")
-#pragma comment(lib, "shell32.lib")
-
-#pragma comment(lib, "advapi32.lib")
-#pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "dbghelp.lib")
-
-#pragma comment(lib, "advapi32.lib")
-#pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "winspool.lib")
-#pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "dbghelp.lib")
 #pragma comment(lib, "user32.lib")
-#pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "shlwapi.lib")
-#pragma comment(lib, "oleaut32.lib")
+#pragma comment(lib, "kernel32.lib")
+#pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "OneCore.lib")
 
 // Relative Virtual Address to Virtual Address
 #define RVA2VA(type, base, rva) (type)((ULONG_PTR) base + rva)
@@ -161,7 +159,8 @@ BOOL SetPrivilege(PWCHAR szPrivilege, BOOL bEnable){
       tp.Privileges[0].Attributes = bEnable?SE_PRIVILEGE_ENABLED:SE_PRIVILEGE_REMOVED;
 
       // adjust token
-      bResult = AdjustTokenPrivileges(hToken, FALSE, &tp, 0, NULL, NULL);
+      AdjustTokenPrivileges(hToken, FALSE, &tp, 0, NULL, NULL);
+      bResult = GetLastError() == ERROR_SUCCESS;
     }
     CloseHandle(hToken);
     return bResult;
@@ -292,6 +291,70 @@ PWCHAR wnd2proc(HWND hw) {
     return name;
 }
 
+void ShowProcessIntegrityLevel(DWORD pid)
+{
+ HANDLE hToken;
+ HANDLE hProcess;
+
+ DWORD dwLengthNeeded;
+ DWORD dwError = ERROR_SUCCESS;
+
+ PTOKEN_MANDATORY_LABEL pTIL = NULL;
+ LPWSTR pStringSid;
+ DWORD dwIntegrityLevel;
+ 
+ hProcess = OpenProcess(PROCESS_ALL_ACCESS,FALSE,pid);
+ if (OpenProcessToken(hProcess, TOKEN_QUERY, &hToken)) 
+ {
+  // Get the Integrity level.
+  if (!GetTokenInformation(hToken, TokenIntegrityLevel, 
+      NULL, 0, &dwLengthNeeded))
+  {
+   dwError = GetLastError();
+   if (dwError == ERROR_INSUFFICIENT_BUFFER)
+   {
+    pTIL = (PTOKEN_MANDATORY_LABEL)LocalAlloc(0, 
+         dwLengthNeeded);
+    if (pTIL != NULL)
+    {
+     if (GetTokenInformation(hToken, TokenIntegrityLevel, 
+         pTIL, dwLengthNeeded, &dwLengthNeeded))
+     {
+      dwIntegrityLevel = *GetSidSubAuthority(pTIL->Label.Sid, 
+        (DWORD)(UCHAR)(*GetSidSubAuthorityCount(pTIL->Label.Sid)-1));
+ 
+      if (dwIntegrityLevel == SECURITY_MANDATORY_LOW_RID)
+      {
+       // Low Integrity
+       wprintf(L"Low");
+      }
+      else if (dwIntegrityLevel >= SECURITY_MANDATORY_MEDIUM_RID && 
+           dwIntegrityLevel < SECURITY_MANDATORY_HIGH_RID)
+      {
+       // Medium Integrity
+       wprintf(L"Medium");
+      }
+      else if (dwIntegrityLevel >= SECURITY_MANDATORY_HIGH_RID)
+      {
+       // High Integrity
+       wprintf(L"High Integrity");
+      }
+      else if (dwIntegrityLevel >= SECURITY_MANDATORY_SYSTEM_RID)
+      {
+       // System Integrity
+       wprintf(L"System Integrity");
+      }
+     }
+     LocalFree(pTIL);
+    }
+   }
+  }
+  CloseHandle(hToken);
+ }
+ CloseHandle(hProcess);
+ putchar('\n');
+}
+
 /**
   read a shellcode from disk into memory
 */
@@ -360,6 +423,33 @@ BOOL IsCodePtrEx(HANDLE hp, LPVOID ptr) {
     return ((mbi.State   == MEM_COMMIT    ) &&
             (mbi.Type    == MEM_IMAGE     ) && 
             (mbi.Protect == PAGE_EXECUTE_READ));
+}
+
+BOOL IsMapPtr(LPVOID ptr) {
+    MEMORY_BASIC_INFORMATION mbi;
+    DWORD                    res;
+    
+    if(ptr == NULL) return FALSE;
+    
+    // query the pointer
+    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
+    if(res != sizeof(mbi)) return FALSE;
+
+    return ((mbi.State   == MEM_COMMIT) &&
+            (mbi.Type    == MEM_MAPPED));
+}
+
+BOOL IsReadWritePtr(LPVOID ptr) {
+    MEMORY_BASIC_INFORMATION mbi;
+    DWORD                    res;
+    
+    if(ptr == NULL) return FALSE;
+    
+    // query the pointer
+    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
+    if(res != sizeof(mbi)) return FALSE;
+
+    return (mbi.Protect == PAGE_READWRITE);    
 }
 
 #endif

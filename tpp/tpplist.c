@@ -87,7 +87,8 @@ BOOL SetPrivilege(wchar_t szPrivilege[], BOOL bEnable) {
         tp.Privileges[0].Luid       = luid;
         tp.Privileges[0].Attributes = (bEnable) ? SE_PRIVILEGE_ENABLED : 0;
 
-        bResult = AdjustTokenPrivileges(hToken, FALSE, &tp, 0, NULL, NULL);
+        AdjustTokenPrivileges(hToken, FALSE, &tp, 0, NULL, NULL);
+        bResult = GetLastError() == ERROR_SUCCESS;
       }
       CloseHandle(hToken);
     }
