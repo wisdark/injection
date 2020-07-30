@@ -33,7 +33,7 @@
 #define MAX_VALUE_LEN 32767 // 0x7FFF
 #define MAX_NAME_LEN 16
 
-// set environment variable and return relative virtual address
+// return relative virtual address of environment variable value
 DWORD get_var_rva(PWCHAR name) {
     PVOID  env;
     PWCHAR str, var;
