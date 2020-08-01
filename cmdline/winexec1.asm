@@ -95,18 +95,18 @@ scan_dll:
       xchg   eax, ecx
       jecxz  next_dll              ; if no names, try next DLL in list
       
-      ; edx = IMAGE_EXPORT_DIRECTORY.AddressOfFunctions
+      ; r8 = IMAGE_EXPORT_DIRECTORY.AddressOfFunctions
       lodsd
       xchg   eax, r8d              ;
-      add    r8, rbx              ; r8 = RVA2VA(r8, rbx)
+      add    r8, rbx               ; r8 = RVA2VA(r8, rbx)
       ; ebp = IMAGE_EXPORT_DIRECTORY.AddressOfNames
       lodsd
       xchg   eax, ebp              ;
       add    rbp, rbx              ; rbp = RVA2VA(rbp, rbx)
-      ; esi = IMAGE_EXPORT_DIRECTORY.AddressOfNameOrdinals      
+      ; r9 = IMAGE_EXPORT_DIRECTORY.AddressOfNameOrdinals      
       lodsd
       xchg   eax, r9d
-      add    r9, rbx              ; r9 = RVA2VA(r9, rbx)
+      add    r9, rbx               ; r9 = RVA2VA(r9, rbx)
 find_api:
       mov    esi, [rbp+rcx*4-4]    ; rax = AddressOfNames[rcx-1]
       add    rsi, rbx
