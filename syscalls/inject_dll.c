@@ -356,7 +356,7 @@ BOOL EnablePrivilege(PCHAR szPrivilege){
 
       // adjust token
       AdjustTokenPrivileges(hToken, FALSE, &tp, 0, NULL, NULL);
-      bResult = GetLastError() == ERROR_SUCESS;
+      bResult = GetLastError() == ERROR_SUCCESS;
     }
     CloseHandle(hToken);
     return bResult;
