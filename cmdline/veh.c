@@ -96,6 +96,69 @@ PVOID GetVectoredHandlerList(VOID) {
     return found ? &ds[i - 1] : NULL;    
 }
 
+typedef struct _RTL_SECURE_MEM {
+    LIST_ENTRY                    List;
+    ULONG                         Revision;
+    ULONG                         Reserved;
+    PSECURE_MEMORY_CACHE_CALLBACK Callback;
+} RTL_SECURE_MEM, *PRTL_SECURE_MEM;
+
+BOOLEAN PsecureMemoryCacheCallback(
+  PVOID Addr,
+  SIZE_T Range
+)
+{
+  return FALSE;
+}
+
+// search the .data section for fake callback
+PVOID GetSecMemList(VOID) {
+    PIMAGE_DOS_HEADER      dos;
+    PIMAGE_NT_HEADERS      nt;
+    PIMAGE_SECTION_HEADER  sh;
+    HMODULE                m;
+    BOOL                   found = FALSE;
+    DWORD                  i, cnt;
+    PULONG_PTR             ds;
+    PRTL_SECURE_MEM        sm;
+    
+    // install our callback
+    AddSecureMemoryCacheCallback(PsecureMemoryCacheCallback);
+    
+    // now try find in list
+    m   = GetModuleHandle(L"ntdll");
+    dos = (PIMAGE_DOS_HEADER)m;  
+    nt  = RVA2VA(PIMAGE_NT_HEADERS, m, dos->e_lfanew);  
+    sh  = (PIMAGE_SECTION_HEADER)((LPBYTE)&nt->OptionalHeader + 
+            nt->FileHeader.SizeOfOptionalHeader);
+    
+    // locate the .data segment, save VA and number of pointers
+    for(i=0; i<nt->FileHeader.NumberOfSections; i++) {
+      if(*(PDWORD)sh[i].Name == *(PDWORD)".data") {
+        ds  = RVA2VA(PULONG_PTR, m, sh[i].VirtualAddress);
+        cnt = sh[i].Misc.VirtualSize / sizeof(ULONG_PTR);
+        break;
+      }
+    }
+
+    // Find handler in section
+    for(i=0; i<cnt - 1; i++) {
+      // not heap? skip it...
+      if(!IsHeapPtr((PVOID)ds[i])) continue;
+      // not our callback? skip it..
+      sm = (PRTL_SECURE_MEM)ds[i];
+      if(sm->Callback != PsecureMemoryCacheCallback) continue;
+      found = TRUE;
+      break;
+    }
+    
+    // remove from list
+    RemoveSecureMemoryCacheCallback(PsecureMemoryCacheCallback);
+    
+    // if found, return the pointer to list
+    return found ? &ds[i] : NULL;    
+}
+
 void veh_dump(HANDLE hp, PWCHAR proc, PVOID vhl_va, int idx) {
     RTL_VECTORED_EXCEPTION_ENTRY ee;
     RTL_VECTORED_HANDLER_LIST    vhl[2];
@@ -173,14 +236,176 @@ void seh_dump(HANDLE hp, DWORD pid, PWCHAR proc) {
     }
     CloseHandle(ss);
 }
+
+void sm_dump(HANDLE hp, PWCHAR proc, DWORD pid, PVOID sm_va) {
+    LIST_ENTRY      le;
+    RTL_SECURE_MEM  sm;
+    SIZE_T          rd;
+    PVOID           ptr;
+    
+    // read list
+    ReadProcessMemory(
+      hp, sm_va, &le, sizeof(le), &rd);
+    
+    ptr = le.Flink;
+    
+    for(;;) {
+      // read entry
+      ReadProcessMemory(
+        hp, ptr, &sm, sizeof(sm), &rd);
+      
+      if(sm.List.Flink == le.Flink) break;
+
+      wprintf(L"SM | %-25s [%i] : %p\n", proc, pid, sm.Callback);
+
+      ptr = sm.List.Flink;
+    }
+}
+    
+typedef struct _LDR_DLL_LOADED_NOTIFICATION_DATA {
+    ULONG Flags;                    //Reserved.
+    PUNICODE_STRING FullDllName;   //The full path name of the DLL module.
+    PUNICODE_STRING BaseDllName;   //The base file name of the DLL module.
+    PVOID DllBase;                  //A pointer to the base address for the DLL in memory.
+    ULONG SizeOfImage;              //The size of the DLL image, in bytes.
+} LDR_DLL_LOADED_NOTIFICATION_DATA, *PLDR_DLL_LOADED_NOTIFICATION_DATA;
+
+typedef struct _LDR_DLL_UNLOADED_NOTIFICATION_DATA {
+    ULONG Flags;                    //Reserved.
+    PUNICODE_STRING FullDllName;   //The full path name of the DLL module.
+    PUNICODE_STRING BaseDllName;   //The base file name of the DLL module.
+    PVOID DllBase;                  //A pointer to the base address for the DLL in memory.
+    ULONG SizeOfImage;              //The size of the DLL image, in bytes.
+} LDR_DLL_UNLOADED_NOTIFICATION_DATA, *PLDR_DLL_UNLOADED_NOTIFICATION_DATA;
+
+typedef union _LDR_DLL_NOTIFICATION_DATA {
+    LDR_DLL_LOADED_NOTIFICATION_DATA Loaded;
+    LDR_DLL_UNLOADED_NOTIFICATION_DATA Unloaded;
+} LDR_DLL_NOTIFICATION_DATA, *PLDR_DLL_NOTIFICATION_DATA;
+
+typedef NTSTATUS (*PLDR_DLL_NOTIFICATION_FUNCTION) (
+    _In_     ULONG                      NotificationReason,
+    _In_     PLDR_DLL_NOTIFICATION_DATA NotificationData,
+    _In_opt_ PVOID                      Context);
+    
+typedef NTSTATUS(NTAPI * _LdrRegisterDllNotification) (
+    _In_     ULONG                          Flags,
+    _In_     PLDR_DLL_NOTIFICATION_FUNCTION NotificationFunction,
+    _In_opt_ PVOID                          Context,
+    _Out_    PVOID                          *Cookie
+    );
+    
+typedef NTSTATUS(NTAPI *_LdrUnregisterDllNotification)(
+  _In_ PVOID Cookie
+);
+
+VOID CALLBACK LdrDllNotification(
+    _In_     ULONG                       NotificationReason,
+    _In_     PLDR_DLL_NOTIFICATION_DATA  NotificationData,
+    _In_opt_ PVOID                       Context
+)
+{
+  //
+}
+
+typedef struct _DLL_NOTIFICATION_CALLBACK {
+    LIST_ENTRY                 List;
+    PLDR_DLL_NOTIFICATION_DATA Callback;
+    PVOID                      Context;
+} DLL_NOTIFICATION_CALLBACK, *PDLL_NOTIFICATION_CALLBACK;
+
+void dnc_dump(HANDLE hp, PWCHAR proc, DWORD pid, PVOID dnc_va) {
+    LIST_ENTRY                le;
+    DLL_NOTIFICATION_CALLBACK dnc;
+    SIZE_T                    rd;
+    PVOID                     ptr;
+    
+    // read list
+    ReadProcessMemory(
+      hp, dnc_va, &le, sizeof(le), &rd);
+    
+    ptr = le.Flink;
+    
+    for(;;) {
+      // read entry
+      ReadProcessMemory(
+        hp, ptr, &dnc, sizeof(dnc), &rd);
+      
+      if(dnc.List.Flink == le.Flink) break;
+
+      wprintf(L"DllNotification | %-25s [%i] : %p\n", proc, pid, dnc.Callback);
+
+      ptr = dnc.List.Flink;
+    }
+}
+
+// find LdrpDllNotificationList
+PVOID GetDllNotificationList(VOID) {
+    PIMAGE_DOS_HEADER          dos;
+    PIMAGE_NT_HEADERS          nt;
+    PIMAGE_SECTION_HEADER      sh;
+    HMODULE                    m;
+    BOOL                       found = FALSE;
+    DWORD                      i, cnt;
+    PULONG_PTR                 ds;
+    PDLL_NOTIFICATION_CALLBACK dnc;
+    PVOID                      Cookie;
+    
+    _LdrRegisterDllNotification LdrRegisterDllNotification = 
+        (_LdrRegisterDllNotification)GetProcAddress(GetModuleHandle(L"ntdll"), "LdrRegisterDllNotification");
+
+    _LdrUnregisterDllNotification LdrUnregisterDllNotification = 
+        (_LdrUnregisterDllNotification)GetProcAddress(GetModuleHandle(L"ntdll"), "LdrUnregisterDllNotification");
+        
+    // install our callback
+    LdrRegisterDllNotification(0, LdrDllNotification, NULL, &Cookie);
+    
+    // now try find in list
+    m   = GetModuleHandle(L"ntdll");
+    dos = (PIMAGE_DOS_HEADER)m;  
+    nt  = RVA2VA(PIMAGE_NT_HEADERS, m, dos->e_lfanew);  
+    sh  = (PIMAGE_SECTION_HEADER)((LPBYTE)&nt->OptionalHeader + 
+            nt->FileHeader.SizeOfOptionalHeader);
+    
+    // locate the .data segment, save VA and number of pointers
+    for(i=0; i<nt->FileHeader.NumberOfSections; i++) {
+      if(*(PDWORD)sh[i].Name == *(PDWORD)".data") {
+        ds  = RVA2VA(PULONG_PTR, m, sh[i].VirtualAddress);
+        cnt = sh[i].Misc.VirtualSize / sizeof(ULONG_PTR);
+        break;
+      }
+    }
+
+    // Find handler in section
+    for(i=0; i<cnt - 1; i++) {
+      // not heap? skip it...
+      if(!IsHeapPtr((PVOID)ds[i])) continue;
+      // not our callback? skip it..
+      dnc = (PDLL_NOTIFICATION_CALLBACK)ds[i];
+      if(dnc->Callback != LdrDllNotification) continue;
+      found = TRUE;
+      break;
+    }
+    
+    // remove from list
+    LdrUnregisterDllNotification(Cookie);
+    
+    // if found, return the pointer to list
+    return found ? &ds[i] : NULL;   
+}
     
 void scan_system(DWORD pid) {
-    PVOID          va;
+    PVOID          dnc, va, sm;
     HANDLE         ss;
     PROCESSENTRY32 pe;
     HANDLE         hp;
     
     va = GetVectoredHandlerList();
+    sm = GetSecMemList();
+    dnc = GetDllNotificationList();
+    
+    printf("DNC : %p\n", dnc);
+    printf("SM  : %p\n", sm);
     
     if(va == NULL) {
       wprintf(L"  [ ERROR: Unable to resolve address of LdrpVectorHandlerList.\n");
@@ -211,6 +436,9 @@ void scan_system(DWORD pid) {
           
           veh_dump(hp, pe.szExeFile, va, 0);
           veh_dump(hp, pe.szExeFile, va, 1);
+          
+          sm_dump(hp, pe.szExeFile, pe.th32ProcessID, sm);
+          dnc_dump(hp, pe.szExeFile, pe.th32ProcessID, dnc);
           
           CloseHandle(hp);
         }
