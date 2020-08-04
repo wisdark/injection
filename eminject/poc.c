@@ -168,6 +168,7 @@ VOID em_inject(PWCHAR cmd) {
     SendMessage(ecw, EM_SETWORDBREAKPROC, 0, (LPARAM)NULL);
     
     // cleanup and exit
+    free(cs);
     TerminateProcess(pi.hProcess, 0);
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
