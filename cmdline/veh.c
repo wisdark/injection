@@ -44,7 +44,7 @@ typedef struct _RTL_VECTORED_HANDLER_LIST {
 // exception handler entry
 typedef struct _RTL_VECTORED_EXCEPTION_ENTRY {
     LIST_ENTRY                  List;
-    PULONG_PTR                  Flag;           // some flag
+    PULONG_PTR                  Flag;           // some flag related to CFG
     ULONG                       RefCount;
     PVECTORED_EXCEPTION_HANDLER VectoredHandler;
 } RTL_VECTORED_EXCEPTION_ENTRY, *PRTL_VECTORED_EXCEPTION_ENTRY;
@@ -120,12 +120,60 @@ void veh_dump(HANDLE hp, PWCHAR proc, PVOID vhl_va, int idx) {
       if(ee.List.Flink == vhl[idx].List.Flink) break;
       
       RtlDecodeRemotePointer(hp, ee.VectoredHandler, &ptr);
-      wprintf(L"%-25s : %p\n", proc, ptr);
+      wprintf(L"VEH | %-25s : %p\n", proc, ptr);
 
       ptr = ee.List.Flink;
     }
 }
 
+void seh_dump(HANDLE hp, DWORD pid, PWCHAR proc) {
+    HANDLE                   ss, ht;
+    THREADENTRY32            te;
+    NTSTATUS                 nts;
+    PVOID                    el;
+    SIZE_T                   rd;
+    THREAD_BASIC_INFORMATION tbi;
+    ULONG                    len;
+    
+    // 1. Enumerate threads in target process
+    ss = CreateToolhelp32Snapshot(
+      TH32CS_SNAPTHREAD, 0);
+      
+    if(ss == INVALID_HANDLE_VALUE) return;
+
+    te.dwSize = sizeof(THREADENTRY32);
+    
+    if(Thread32First(ss, &te)) {
+      do {
+        // if not our target process, skip it
+        if(te.th32OwnerProcessID != pid) continue;
+        
+        // if we can't open thread, skip it
+        ht = OpenThread(
+          THREAD_ALL_ACCESS, 
+          FALSE, 
+          te.th32ThreadID);
+          
+        if(ht == NULL) continue;
+        
+        nts = NtQueryInformationThread(
+          ht, ThreadBasicInformation,
+          &tbi, sizeof(tbi), &len);
+        
+        if(nts == 0) {
+          ReadProcessMemory(hp, 
+            tbi.TebBaseAddress, &el, 
+            sizeof(ULONG_PTR), &rd);
+          
+          if(el != NULL) 
+            wprintf(L"SEH | %-25s : %p\n", proc, el);
+        }
+        CloseHandle(ht);
+      } while(Thread32Next(ss, &te));
+    }
+    CloseHandle(ss);
+}
+    
 void scan_system(DWORD pid) {
     PVOID          va;
     HANDLE         ss;
@@ -159,6 +207,8 @@ void scan_system(DWORD pid) {
           pe.th32ProcessID);
           
         if(hp != NULL) {
+          seh_dump(hp, pe.th32ProcessID, pe.szExeFile);
+          
           veh_dump(hp, pe.szExeFile, va, 0);
           veh_dump(hp, pe.szExeFile, va, 1);
           
