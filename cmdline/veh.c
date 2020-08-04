@@ -262,6 +262,9 @@ void sm_dump(HANDLE hp, PWCHAR proc, DWORD pid, PVOID sm_va) {
     }
 }
     
+// sechost!I_RegisterSvchostNotificationCallback
+// sechost!EtwpEventCallbackList for SetTraceCallback
+
 typedef struct _LDR_DLL_LOADED_NOTIFICATION_DATA {
     ULONG Flags;                    //Reserved.
     PUNICODE_STRING FullDllName;   //The full path name of the DLL module.
