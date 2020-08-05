@@ -36,6 +36,7 @@
 #define ETW_OPT_SEARCH  (1 << 1)
 #define ETW_OPT_DISABLE (1 << 2)
 #define ETW_OPT_INJECT  (1 << 3)
+#define ETW_OPT_TRACERS (1 << 4)
 
 DWORD prov_cnt = 0, disabled_cnt = 0;
 
@@ -662,6 +663,147 @@ VOID etw_search_system(DWORD pid, PWCHAR dll, PWCHAR prov, int opt) {
     CloseHandle(ss);
 }
 
+/* 45d8cccd-539f-4b72-a8b7-5c683142609a */
+
+GUID ALPCGuid = { 0x45d8cccd, 0x539f, 0x4b72, 0xa8, 0xb7, 0x5c, 0x68, 0x31, 0x42, 0x60, 0x9a };
+
+typedef struct _EVENT_CALLBACK_ENTRY {
+    LIST_ENTRY ListHead;
+    GUID       ProviderId;
+    PVOID      Callback;
+} EVENT_CALLBACK_ENTRY, *PEVENT_CALLBACK_ENTRY;
+
+void PeventCallback(PEVENT_TRACE pEvent) {
+}
+
+PWCHAR get_mapped_file(HANDLE hp, PVOID address) {
+    static WCHAR path[MAX_PATH];
+    ZeroMemory(path, sizeof(path));
+    
+    GetMappedFileName(hp, address, path, MAX_PATH);
+    return path;
+}
+
+PVOID GetTraceCallbackList(VOID) {
+    PIMAGE_DOS_HEADER     dos;
+    PIMAGE_NT_HEADERS     nt;
+    PIMAGE_SECTION_HEADER sh;
+    HMODULE               m;
+    BOOL                  found = FALSE;
+    DWORD                 i, cnt;
+    PULONG_PTR            ds;
+    PEVENT_CALLBACK_ENTRY pce;
+
+    // install our callback
+    SetTraceCallback(&ALPCGuid, PeventCallback);
+    
+    // now try find in list
+    m   = LoadLibrary(L"sechost");
+    dos = (PIMAGE_DOS_HEADER)m;  
+    nt  = RVA2VA(PIMAGE_NT_HEADERS, m, dos->e_lfanew);  
+    sh  = (PIMAGE_SECTION_HEADER)((LPBYTE)&nt->OptionalHeader + 
+            nt->FileHeader.SizeOfOptionalHeader);
+    
+    // locate the .data segment, save VA and number of pointers
+    for(i=0; i<nt->FileHeader.NumberOfSections; i++) {
+      if(*(PDWORD)sh[i].Name == *(PDWORD)".data") {
+        ds  = RVA2VA(PULONG_PTR, m, sh[i].VirtualAddress);
+        cnt = sh[i].Misc.VirtualSize / sizeof(ULONG_PTR);
+        break;
+      }
+    }
+    
+    // Find handler in section
+    for(i=0; i<cnt - 1; i++) {
+      if(!IsHeapPtr((PVOID)ds[i])) continue;
+      pce = (PEVENT_CALLBACK_ENTRY)ds[i];
+      if(pce->Callback != PeventCallback) continue;
+      found = TRUE;
+      break;
+    }
+    
+    RemoveTraceCallback(&ALPCGuid);
+    
+    // if found, return the pointer to list
+    return found ? &ds[i] : NULL;   
+}
+
+void dump_tracers(HANDLE hp, PVOID va, DWORD pid, PWCHAR proc) {
+    LIST_ENTRY           ecl;
+    EVENT_CALLBACK_ENTRY ece;
+    PVOID                ptr;
+    SIZE_T               rd;
+    OLECHAR              id[40];
+    
+    // read list entry
+    ReadProcessMemory(
+      hp, va, &ecl, 
+      sizeof(ecl), &rd);
+    
+    if(rd != sizeof(ecl)) return;
+    
+    ptr = ecl.Flink;
+    if(ptr == va) return;
+    
+    printf("TraceCallbackList : %p : %ws [%i]\n", va, proc, pid);
+
+    for(;;) {
+      if(ptr == va) break;
+      
+      ReadProcessMemory(
+        hp, ptr, &ece, 
+        sizeof(ece), &rd);
+      
+      if(rd != sizeof(ece)) break;
+      
+      StringFromGUID2(&ece.ProviderId, id, sizeof(id));
+      printf("ProviderId : %ws (%ws)\n", id, etw_id2name(id));
+      
+      ptr = ece.Callback;
+      printf("Callback   : %p : %ws\n", ptr, get_mapped_file(hp, ptr)); 
+    
+      ptr = (PVOID)ece.ListHead.Flink;
+    }
+    putchar('\n');
+}
+
+void scan_tracers(DWORD pid) {
+    HANDLE         ss;
+    PROCESSENTRY32 pe;
+    HANDLE         hp;
+    PVOID          va;
+    
+    va = GetTraceCallbackList();
+    
+    ss = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if(ss == INVALID_HANDLE_VALUE) return;
+    
+    pe.dwSize = sizeof(PROCESSENTRY32);
+
+    if(Process32First(ss, &pe)){
+      do {
+        // skip system
+        if(pe.th32ProcessID <= 4) continue;
+        
+        // if filtering by process id, skip entries that don't match
+        if(pid != 0 && pe.th32ProcessID != pid) continue;
+        
+        // try open process
+        hp = OpenProcess(
+          PROCESS_ALL_ACCESS, 
+          FALSE, 
+          pe.th32ProcessID);
+          
+        if(hp != NULL) {
+          dump_tracers(hp, va, pe.th32ProcessID, pe.szExeFile);
+          
+          CloseHandle(hp);
+        }
+      } while(Process32Next(ss, &pe));
+    }
+    CloseHandle(ss);
+}
+
 void usage(void) {
     wprintf(L"usage: etwdump [options] <process>\n\n");
     wprintf(L"  -i <file>    Inject shellcode into remote process (must use same prototype as ETW callback)\n");
@@ -707,6 +849,10 @@ int wmain(int argc, WCHAR *argv[]) {
           // filter by module/DLL
           case L'm':
             dll = argv[++i];
+            break;
+          // list tracers
+          case L't':
+            opt |= ETW_OPT_TRACERS;
             break;
           // help
           case L'?':
