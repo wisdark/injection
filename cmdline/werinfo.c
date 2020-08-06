@@ -79,7 +79,7 @@ void gather_info(HANDLE hp, PVOID List, DWORD Count) {
     if(List == NULL || Count == 0) return;
     ptr = List;
     
-    printf("GatherList : %p\n", List);
+    printf("Gather : %p\n", List);
     
     for(;;) {
       ReadProcessMemory(
@@ -113,7 +113,7 @@ void metadata_info(HANDLE hp, PVOID List, DWORD Count) {
     if(List == NULL || Count == 0) return;
     ptr = List;
     
-    printf("MetaDataList : %p\n", List);
+    printf("MetaData : %p\n", List);
     
     for(;;) {
       ReadProcessMemory(
@@ -139,7 +139,7 @@ void runtime_info(HANDLE hp, PVOID List) {
     if(List == NULL) return;
     ptr = List;
     
-    printf("RuntimeList : %p\n", List);
+    printf("Runtime : %p\n", List);
     
     for(;;) {
       ReadProcessMemory(
@@ -165,7 +165,7 @@ void dump_info(HANDLE hp, PVOID List, DWORD Count) {
     if(List == NULL || Count == 0) return;
     ptr = List;
     
-    printf("DumpCollectionList : %p | Count : %i\n", List, Count);
+    printf("DumpCollection : %p | Count : %i\n", List, Count);
     
     for(;;) {
       ReadProcessMemory(
@@ -184,10 +184,10 @@ void dump_info(HANDLE hp, PVOID List, DWORD Count) {
 void main_info(HANDLE hp, PWER_HEAP_MAIN_HEADER hdr) {
     if(hdr == NULL) return;
     
-    printf("Main Header : %p\n", (PVOID)hdr);
+    printf("Main Header  : %p\n", (PVOID)hdr);
     
-    printf("Unknown1 : %p\n", hdr->Unknown1);
-    printf("Unknown2 : %p\n", hdr->Unknown2);
+    printf("FreeHeap  : %p\n", hdr->FreeHeap);
+    printf("FreeCount : %p\n", hdr->FreeCount);
 }
 
 void wer_dump(HANDLE hp, DWORD pid, PWCHAR proc) {
@@ -220,10 +220,10 @@ void wer_dump(HANDLE hp, DWORD pid, PWCHAR proc) {
       if(wer.RestartCommandLine[0] != 0) 
         printf("RestartCommandLine  : %ws\n", wer.RestartCommandLine);
 
-      gather_info(hp, (PVOID)wer.GatherList, wer.GatherCount);
-      metadata_info(hp, (PVOID)wer.MetaDataList, wer.MetaDataCount);
-      runtime_info(hp, (PVOID)wer.RuntimeDllList);
-      dump_info(hp, (PVOID)wer.DumpCollectionList, wer.DumpCount);
+      gather_info(hp, (PVOID)wer.Gather, wer.GatherCount);
+      metadata_info(hp, (PVOID)wer.MetaData, wer.MetaDataCount);
+      runtime_info(hp, (PVOID)wer.RuntimeDll);
+      dump_info(hp, (PVOID)wer.DumpCollection, wer.DumpCount);
       recovery_info(hp, &wer.RecoveryInfo);
       main_info(hp, &wer.MainHeader);
     }

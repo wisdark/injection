@@ -96,21 +96,20 @@ typedef struct _WER_HEAP_MAIN_HEADER {
     WCHAR                Signature[16];                // HEAP_SIGNATURE 
     LIST_ENTRY           ListHead;
     HANDLE               Mutex;
-    PVOID                FreeHeapList;
-    PVOID                Unknown2;
+    PVOID                FreeHeap;
+    PVOID                FreeCount;
 } WER_HEAP_MAIN_HEADER, *PWER_HEAP_MAIN_HEADER;
 
 typedef struct _WER_PEB_HEADER_BLOCK {
     LONG                 Length;
-    WCHAR                Signature[16];                // PEB_SIGNATURE
-    LONG                 Flag;
+    WCHAR                Signature[16];
     WCHAR                AppDataRelativePath[64];
-    WCHAR                RestartCommandLine[RESTART_MAX_CMD_LINE];      // RegisterApplicationRestart
+    WCHAR                RestartCommandLine[RESTART_MAX_CMD_LINE];
     WER_RECOVERY_INFO    RecoveryInfo;
-    PWER_GATHER          GatherList;                   // List of memory addresses and files
-    PWER_METADATA        MetaDataList;
-    PWER_RUNTIME_DLL     RuntimeDllList;               // User-defined modules
-    PWER_DUMP_COLLECTION DumpCollectionList;
+    PWER_GATHER          Gather;
+    PWER_METADATA        MetaData;
+    PWER_RUNTIME_DLL     RuntimeDll;
+    PWER_DUMP_COLLECTION DumpCollection;
     LONG                 GatherCount;
     LONG                 MetaDataCount;
     LONG                 DumpCount;
