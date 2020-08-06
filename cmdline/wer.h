@@ -30,20 +30,28 @@
 #ifndef WER_H
 #define WER_H
 
+// WerRegisterCustomMetadata
 typedef struct _WER_METADATA {
     PVOID                Next;
     WCHAR                Key[64];
     WCHAR                Value[128];
 } WER_METADATA, *PWER_METADATA;
 
+// WerRegisterFile
+// Registers a file to be collected when WER creates an error report.
 typedef struct _WER_FILE {
     USHORT               Flags;
     WCHAR                Path[MAX_PATH];
 } WER_FILE, *PWER_FILE;
 
+// WerRegisterExcludedMemoryBlock
+// Marks a memory block (that is normally included by default in error reports) to be excluded from the error report.
+//
+// WerRegisterMemoryBlock
+// Registers a memory block to be collected when WER creates an error report.
 typedef struct _WER_MEMORY {
-    PVOID                Address;
-    ULONG                Size;
+    PVOID                Address;   // The starting address of the memory block.
+    ULONG                Size;      // The size of the memory block, in bytes.
 } WER_MEMORY, *PWER_MEMORY;
 
 typedef struct _WER_GATHER {
@@ -55,28 +63,31 @@ typedef struct _WER_GATHER {
     } v;
 } WER_GATHER, *PWER_GATHER;
 
+// WerRegisterAdditionalProcess
 typedef struct _WER_DUMP_COLLECTION {
     PVOID                Next;
-    DWORD                ProcessId;
-    DWORD                ExtraInfoForThreadId;
+    DWORD                ProcessId;              // The Id of the process to register.
+    DWORD                ThreadId;   // The Id of a thread within the registered process from which more information is requested.
 } WER_DUMP_COLLECTION, *PWER_DUMP_COLLECTION;
 
 typedef struct _WER_RUNTIME_DLL {
     PVOID                Next;
-    ULONG                Length;
-    PVOID                Context;
+    ULONG                Length;                 // total length of this structure
+    PVOID                Context;                // passed to callback in DLL
     WCHAR                CallbackDllPath[MAX_PATH];
 } WER_RUNTIME_DLL, *PWER_RUNTIME_DLL;
 
+// GetApplicationRecoveryCallback to read from remote process
+// RegisterApplicationRecoveryCallback
 typedef struct _WER_RECOVERY_INFO {
     ULONG                Length;
     PVOID                Callback;
     PVOID                Parameter;
-    HANDLE               StartedEvent;
-    HANDLE               FinishedEvent;
-    HANDLE               InProgressEvent;
+    HANDLE               Started;
+    HANDLE               Finished;            // read by ApplicationRecoveryFinished
+    HANDLE               InProgress;          // read by ApplicationRecoveryInProgress
     LONG                 LastError;
-    BOOL                 bRecoverySuccess;
+    BOOL                 Successful;
     DWORD                PingInterval;
     DWORD                Flags;
 } WER_RECOVERY_INFO, *PWER_RECOVERY_INFO;
@@ -85,7 +96,7 @@ typedef struct _WER_HEAP_MAIN_HEADER {
     WCHAR                Signature[16];                // HEAP_SIGNATURE 
     LIST_ENTRY           ListHead;
     HANDLE               Mutex;
-    PVOID                Unknown1;
+    PVOID                FreeHeapList;
     PVOID                Unknown2;
 } WER_HEAP_MAIN_HEADER, *PWER_HEAP_MAIN_HEADER;
 
@@ -94,8 +105,7 @@ typedef struct _WER_PEB_HEADER_BLOCK {
     WCHAR                Signature[16];                // PEB_SIGNATURE
     LONG                 Flag;
     WCHAR                AppDataRelativePath[64];
-    WCHAR                RestartCommandLine[MAX_PATH]; // Used in command line for a restart
-    ULONG64              Unknown1[191];
+    WCHAR                RestartCommandLine[RESTART_MAX_CMD_LINE];      // RegisterApplicationRestart
     WER_RECOVERY_INFO    RecoveryInfo;
     PWER_GATHER          GatherList;                   // List of memory addresses and files
     PWER_METADATA        MetaDataList;

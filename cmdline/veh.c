@@ -77,7 +77,7 @@ PVOID GetVectoredHandlerList(VOID) {
     sh  = (PIMAGE_SECTION_HEADER)((LPBYTE)&nt->OptionalHeader + 
             nt->FileHeader.SizeOfOptionalHeader);
     
-    // locate the .data segment, save VA and number of pointers
+    // locate the .mrdata segment, save VA and number of pointers
     for(i=0; i<nt->FileHeader.NumberOfSections; i++) {
       if(*(PDWORD)sh[i].Name == *(PDWORD)".mrdata") {
         ds  = RVA2VA(PULONG_PTR, m, sh[i].VirtualAddress);
@@ -108,7 +108,7 @@ BOOLEAN PsecureMemoryCacheCallback(
   SIZE_T Range
 )
 {
-  return FALSE;
+    return FALSE;
 }
 
 // search the .data section for fake callback
@@ -308,7 +308,7 @@ VOID CALLBACK LdrDllNotification(
     _In_opt_ PVOID                       Context
 )
 {
-  //
+    //
 }
 
 typedef struct _DLL_NOTIFICATION_CALLBACK {

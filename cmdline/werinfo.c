@@ -40,20 +40,33 @@ PWCHAR get_mapped_file(HANDLE hp, PVOID address) {
     return path;
 }
           
-void recovery_info(PWER_RECOVERY_INFO ri) {
-    
+/**
+RtlDecodeSystemPointer proc near
+.text:00007FFEE09B0DC0                 mov     r8d, ds:7FFE0330h
+.text:00007FFEE09B0DC8                 mov     r9, rcx
+.text:00007FFEE09B0DCB                 mov     edx, r8d
+.text:00007FFEE09B0DCE                 mov     eax, r8d
+.text:00007FFEE09B0DD1                 and     edx, 63
+.text:00007FFEE09B0DD4                 mov     ecx, 64
+.text:00007FFEE09B0DD9                 sub     ecx, edx
+.text:00007FFEE09B0DDB                 ror     r9, cl
+.text:00007FFEE09B0DDE                 xor     rax, r9
+.text:00007FFEE09B0DE1                 retn
+.text:00007FFEE09B0DE1 RtlDecodeSystemPointer endp
+*/
+void recovery_info(HANDLE hp, PWER_RECOVERY_INFO ri) {
     if(ri->Length == 0) return;
     
-    printf("Recovery Info : %p\n", ri);
+    printf("Recovery Info    : %p\n", ri);
     
     printf("Length           : %i\n", ri->Length);
-    printf("Callback         : %p\n", ri->Callback);
+    printf("Callback         : %p\n", (PVOID)DecodeSystemPointer(ri->Callback));
     printf("Parameter        : %p\n", ri->Parameter); 
-    printf("StartedEvent     : %p\n", ri->StartedEvent); 
-    printf("FinishedEvent    : %p\n", ri->FinishedEvent); 
-    printf("InProgressEvent  : %p\n", ri->InProgressEvent); 
+    printf("StartedEvent     : %p\n", ri->Started); 
+    printf("FinishedEvent    : %p\n", ri->Finished); 
+    printf("InProgressEvent  : %p\n", ri->InProgress); 
     printf("LastError        : %08lx\n", ri->LastError); 
-    printf("bRecoverySuccess : %i\n", ri->bRecoverySuccess); 
+    printf("Successful       : %i\n", ri->Successful); 
     printf("PingInterval     : %08lx\n", ri->PingInterval); 
     printf("Flags            : %08lx\n", ri->Flags); 
 }
@@ -152,22 +165,29 @@ void dump_info(HANDLE hp, PVOID List, DWORD Count) {
     if(List == NULL || Count == 0) return;
     ptr = List;
     
-    printf("DumpCollectionList : %p\n", List);
+    printf("DumpCollectionList : %p | Count : %i\n", List, Count);
     
     for(;;) {
       ReadProcessMemory(
         hp, ptr, &dc, 
         sizeof(dc), &rd);
       
-      if(rd != sizeof(dc)) break;
-      
-      printf("Process ID : %p\n", (PVOID)dc.ProcessId);
-      printf("Thread ID  : %ws\n", (PWCHAR)dc.ExtraInfoForThreadId);
+      printf("Process ID : %08lx\n", dc.ProcessId);
+      printf("Thread ID  : %08lx\n", dc.ThreadId);
     
       if(dc.Next == 0) break;
       ptr = (PVOID)dc.Next;
     }
     putchar('\n');
+}
+
+void main_info(HANDLE hp, PWER_HEAP_MAIN_HEADER hdr) {
+    if(hdr == NULL) return;
+    
+    printf("Main Header : %p\n", (PVOID)hdr);
+    
+    printf("Unknown1 : %p\n", hdr->Unknown1);
+    printf("Unknown2 : %p\n", hdr->Unknown2);
 }
 
 void wer_dump(HANDLE hp, DWORD pid, PWCHAR proc) {
@@ -199,12 +219,13 @@ void wer_dump(HANDLE hp, DWORD pid, PWCHAR proc) {
       
       if(wer.RestartCommandLine[0] != 0) 
         printf("RestartCommandLine  : %ws\n", wer.RestartCommandLine);
-      
+
       gather_info(hp, (PVOID)wer.GatherList, wer.GatherCount);
       metadata_info(hp, (PVOID)wer.MetaDataList, wer.MetaDataCount);
       runtime_info(hp, (PVOID)wer.RuntimeDllList);
       dump_info(hp, (PVOID)wer.DumpCollectionList, wer.DumpCount);
-      recovery_info(&wer.RecoveryInfo);
+      recovery_info(hp, &wer.RecoveryInfo);
+      main_info(hp, &wer.MainHeader);
     }
 }
 
