@@ -394,6 +394,22 @@ BOOL IsHeapPtr(LPVOID ptr) {
             (mbi.Protect == PAGE_READWRITE));
 }
 
+// returns TRUE if ptr is .data
+BOOL IsDataPtr(LPVOID ptr) {
+    MEMORY_BASIC_INFORMATION mbi;
+    DWORD                    res;
+    
+    if(ptr == NULL) return FALSE;
+    
+    // query the pointer
+    res = VirtualQuery(ptr, &mbi, sizeof(mbi));
+    if(res != sizeof(mbi)) return FALSE;
+
+    return ((mbi.State   == MEM_COMMIT    ) &&
+            (mbi.Type    == MEM_IMAGE     ) && 
+            (mbi.Protect == PAGE_READWRITE));
+}
+
 // returns TRUE if ptr is RX code
 BOOL IsCodePtr(LPVOID ptr) {
     MEMORY_BASIC_INFORMATION mbi;
